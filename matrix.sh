@@ -30,7 +30,7 @@ dims() {
     fi
 
     # memory map the file to an array of lines
-
+    # otherwise mapfile defaults to stdin
     if [ $# -eq 0 ]; then
         mapfile dim_matrix
     else
@@ -71,14 +71,9 @@ add() {
         exit 1
     fi
 
-    # mapfile reads the file as an array of lines
-    # each line is a row in the tab seperated matrix
-    mapfile matrix1 < $1
-    dims1=$(echo $matrix1 | dims)
-
     # reuse dims function to test dimensions
-    mapfile matrix2 < $2
-    dims2=$(echo $matrix2 | dims)
+    dims1=$(dims $1)
+    dims2=$(dims $2)
 
     # Matrix addition requires rows and cols to be exactly the same
     # reuse the dims function and check for equal output
@@ -86,6 +81,11 @@ add() {
         >&2 echo "Addition not possible."
         exit 1;
     fi
+
+    # mapfile reads the file as an array of lines
+    # each line is a row in the tab seperated matrix
+    mapfile matrix1 < $1
+    mapfile matrix2 < $2
 
     # iterate over the indeces of the first matrix
     # the ! sign means give us a indeces the @ sign means of every element
@@ -115,6 +115,57 @@ add() {
         # the default vaulues remove tabs but we want to print those literally
         # we use sub process here to avoid changing it for the other loops
         (IFS='\n'; echo ${sum_row[@]})
+    done
+}
+
+transpose() {
+# Test that only a singular argument was passed
+    # >&2 redirects output to stderr
+    # >/dev/null is added to avoid also outputting to stdout
+    if [ $# -gt 1 ]; then
+        >&2 echo "Too many arguments"
+        exit 1
+    fi
+
+    # Check if file name is readable or exists
+    if [ ! -r $1 ]; then
+        >&2 echo "file error"
+        exit 1
+    fi
+
+    # memory map the file to an array of lines if files passed
+    # otherwise mapfile defaults to stdin
+    if [ $# -eq 0 ]; then
+        mapfile dim_matrix
+    else
+       mapfile dim_matrix < $1
+    fi
+
+    # turn output of dims function into array with dims and set dimensions
+    dim_array=($(dims $1))
+
+    rows=${dim_array[0]}
+    cols=${dim_array[1]}
+
+    # Subtract 1 from the size so we can know when a tab is not needed
+    eol=$(( rows - 1 ))
+
+    # create a new row from the all the elements in col i
+    for ((i=0; i < cols; i++)); do
+        new_row=()
+
+        # get and iterate over all ideces j for the array of rows (matrix)
+        for j in "${!dim_matrix[@]}"; do
+            line_array=(${dim_matrix[j]})
+
+            # append new row and add tab if not last element of new row
+            new_row+=${line_array[i]}
+            if [ $j -ne $eol ]; then
+                new_row+=$'\t' #matrix is tab seperated
+            fi
+        done
+        # same as addition printing, set IFS in a subprocess to keep tabs
+        (IFS=''; echo ${new_row[@]})
     done
 }
 
