@@ -8,7 +8,7 @@
 # dims function
 #
 # desc: gives dimensions row, cols for tab seperated matrix
-# input takes single argument, which is the name of a file
+# input takes single argument or piped input, which is the name of a file
 # output: rows cols
 #
 # Assumptions: array format is valid
@@ -18,19 +18,24 @@ dims() {
     # Test that only a singular argument was passed
     # >&2 redirects output to stderr
     # >/dev/null is added to avoid also outputting to stdout
-    if [ $# -ne 1 ]; then
-        >&2 echo "Too many arguments" >/dev/null
+    if [ $# -gt 1 ]; then
+        >&2 echo "Too many arguments"
         exit 1
     fi
 
     # Check if file name is readable or exists
     if [ ! -r $1 ]; then
-        >&2 echo "file error" >/dev/null
+        >&2 echo "file error"
         exit 1
     fi
 
     # memory map the file to an array of lines
-    mapfile dim_matrix < $1
+
+    if [ $# -eq 0 ]; then
+        mapfile dim_matrix
+    else
+       mapfile dim_matrix < $1
+    fi
 
     # this gives the number of elements in a bash array
     # number of lines is equal to number of rows
@@ -56,18 +61,24 @@ add() {
     # >&2 redirects output to stderr
     # >/dev/null is added to avoid also outputting to stdout
     if [ $# -ne 2 ]; then
-        >&2 echo "Wrong number of arguments" >/dev/null
+        >&2 echo "Wrong number of arguments"
         exit 1
     fi
 
     # Check if files are readable or exist
     if [ ! -r $1 ] || [ ! -r $2 ]; then
-        >&2 echo "file error" >/dev/null
+        >&2 echo "file error"
         exit 1
     fi
 
-    dims1=$(dims $1)
-    dims2=$(dims $2)
+    # mapfile reads the file as an array of lines
+    # each line is a row in the tab seperated matrix
+    mapfile matrix1 < $1
+    dims1=$(echo $matrix1 | dims)
+
+    # reuse dims function to test dimensions
+    mapfile matrix2 < $2
+    dims2=$(echo $matrix2 | dims)
 
     # Matrix addition requires rows and cols to be exactly the same
     # reuse the dims function and check for equal output
@@ -75,11 +86,6 @@ add() {
         >&2 echo "Addition not possible."
         exit 1;
     fi
-
-    # mapfile reads the file as an array of lines
-    # each line is a row in the tab seperated matrix
-    mapfile matrix1 < $1
-    mapfile matrix2 < $2
 
     # iterate over the indeces of the first matrix
     # the ! sign means give us a indeces the @ sign means of every element
@@ -102,7 +108,7 @@ add() {
             sum_row+=$col
 
             if [ $j -ne $eol ]; then
-                sum_row+=$'\n' #matrix is tab seperated
+                sum_row+=$'\t' #matrix is tab seperated
             fi
         done
         # IFS controls how the values of the array are delimited
