@@ -169,7 +169,56 @@ transpose() {
     done
 }
 
+
+multiply() {
+
+    # Test that two arguments was passed
+    # >&2 redirects output to stderr
+    # >/dev/null is added to avoid also outputting to stdout
+    if [ $# -ne 2 ]; then
+        >&2 echo "Wrong number of arguments"
+        exit 1
+    fi
+
+    # Check if files are readable or exist
+    if [ ! -r $1 ] || [ ! -r $2 ]; then
+        >&2 echo "file error"
+        exit 1
+    fi
+
+    # reuse dims function to test dimensions
+    # put dimensions in array to easily index them
+    dims_array1=($(dims $1))
+    dims_array2=($(dims $2))
+
+
+    rows1=${dims_array1[0]} # product row size M
+    cols1=${dims_array1[1]} # N
+
+    rows2=${dims_array2[0]} # N
+    cols2=${dims_array2[1]} # product cols size P
+
+    product_row=$rows1
+    product_col=$cols2
+
+    # Check that matrices are MxN and NxP
+    # we do this by checking that N = N
+    if [ "$cols1" != "$rows2" ]; then
+        >&2 echo "Multiplication not possible."
+        exit 1;
+    fi
+
+    # transpose the second matrix so we can treat it's cols as lines
+    # we use process subsitution to let mapfile grab the sunshell output and give us an array of lines
+    mapfile matrix_2 < <(transpose $2)
+    echo $matrix_2
+    #for loop over both and multiply each index accumulate to a sum add to sum
+    #append final sum to new array product_col times
+    #print
+    # do everything again product_row times
+}
+
+
 # Call the function named by argument 1, with the remaining arguments passed to it
 $1 "${@:2}"
-
 
