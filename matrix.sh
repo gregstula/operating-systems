@@ -208,11 +208,26 @@ multiply() {
         exit 1;
     fi
 
+    # read the first matrix file
+    mapfile matrix_1 < $1
+#    echo "${matrix_1[@]}"
+
     # transpose the second matrix so we can treat it's cols as lines
     # we use process subsitution to let mapfile grab the sunshell output and give us an array of lines
     mapfile matrix_2 < <(transpose $2)
-    echo $matrix_2
+#    echo "${matrix_2[@]}"
+
+    product_matrix=()
     #for loop over both and multiply each index accumulate to a sum add to sum
+    sum=0
+    for ((i=0; i < product_col; i++)); do
+        line1=(${matrix_1[i]})
+        line2=(${matrix_2[i]})
+        for j in ${!line1[@]}; do
+                sum=$(( $sum + ${line1[j]} * ${line2[j]} ))
+        done
+        echo $sum
+    done
     #append final sum to new array product_col times
     #print
     # do everything again product_row times
