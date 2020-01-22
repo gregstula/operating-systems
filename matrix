@@ -3,27 +3,27 @@
 # matrix
 # Assignment 1 CS 344
 # Author: Gregory D Stula
+# Due Date: 2020-01-22
 
 
 # dims function
 #
 # desc: gives dimensions row, cols for tab seperated matrix
-# input takes single argument or piped input, which is the name of a file
+# input: takes single argument or piped input, which is the name of a file
+# 		 if no argument given it reads from stdin with maparray
 # output: rows cols
 #
 # Assumptions: array format is valid
-
 dims() {
 
-    # Test that only a singular argument was passed
+    # test that only a singular argument was passed
     # >&2 redirects output to stderr
-    # >/dev/null is added to avoid also outputting to stdout
     if [ $# -gt 1 ]; then
         >&2 echo "Too many arguments"
         exit 1
     fi
 
-    # Check if file name is readable or exists
+    # check if file name is readable or exists
     if [ ! -r $1 ]; then
         >&2 echo "file error"
         exit 1
@@ -41,7 +41,7 @@ dims() {
     # number of lines is equal to number of rows
     rows=${#dim_matrix[@]}
 
-    # creat array from first line in the the file we read
+    # create array from first line in the the file we read
     row_array=(${dim_matrix[0]})
 
     # count the elements of the first row to get the numer of cols
@@ -51,21 +51,22 @@ dims() {
 
 }
 
+
 # add function
 #
 # desc: adds two tab seperated matrices
-
+# input: two arguments exactly
+# output: prints new matrix with sum
 add() {
 
-    # Test that two arguments was passed
+    # test that two arguments were passed
     # >&2 redirects output to stderr
-    # >/dev/null is added to avoid also outputting to stdout
     if [ $# -ne 2 ]; then
         >&2 echo "Wrong number of arguments"
         exit 1
     fi
 
-    # Check if files are readable or exist
+    # check if files are readable or exist
     if [ ! -r $1 ] || [ ! -r $2 ]; then
         >&2 echo "file error"
         exit 1
@@ -76,7 +77,6 @@ add() {
     dims2=$(dims $2)
 
     # Matrix addition requires rows and cols to be exactly the same
-    # reuse the dims function and check for equal output
     if [ "$dims1" != "$dims2" ]; then
         >&2 echo "Addition not possible."
         exit 1;
@@ -92,14 +92,14 @@ add() {
     # each index refers to a line (aka row)
     for i in "${!matrix1[@]}"; do
 
-        # Now operate on each row
-        # We create new arrays from the line at the index
+        # now operate on each row
+        # we create new arrays from the line at the index
         row1=(${matrix1[i]})
         row2=(${matrix2[i]})
 
         sum_row=()
 
-        # Subtract 1 from the size so we can know when a tab is not needed
+        # subtract 1 from the size so we can know when a tab is not needed
         eol=$(( ${#row1[@]} - 1 ))
 
         for j in "${!row1[@]}"; do
@@ -116,10 +116,13 @@ add() {
     done
 }
 
+# transpose function
+# desc: transforms a MxN matrix into a NxM matrix
+# input: a single argument or if none is provided check stdin
+# output: prints a transposed matrix
 transpose() {
-# Test that only a singular argument was passed
+	# test that no more than a singular argument was passed
     # >&2 redirects output to stderr
-    # >/dev/null is added to avoid also outputting to stdout
     if [ $# -gt 1 ]; then
         >&2 echo "Too many arguments"
         exit 1
@@ -145,7 +148,7 @@ transpose() {
     rows=${dim_array[0]}
     cols=${dim_array[1]}
 
-    # Subtract 1 from the size so we can know when a tab is not needed
+    # subtract 1 from the size so we can know when a tab is not needed
     eol=$(( rows - 1 ))
 
     # create a new row from the all the elements in col i
@@ -168,6 +171,11 @@ transpose() {
     done
 }
 
+# multiply function
+#
+# desc: multiplies an MxN matrix with an NxP matrix to produxe a MxP matrix
+# input: exactly two arguments of correctly sized array (as per desc)
+# output: a new matrix of MxP size with product
 
 multiply() {
 
@@ -243,22 +251,26 @@ multiply() {
     done
 }
 
+# mean function
+#
+# desc: gives a single row that is the average of all the columns
+# input: a single argument or read from stdin if no arguments
+# output: a line with the numbers
 mean() {
-    # Test that only a singular argument was passed
+    # test that no more than a singular argument was passed
     # >&2 redirects output to stderr
-    # >/dev/null is added to avoid also outputting to stdout
     if [ $# -gt 1 ]; then
         >&2 echo "Too many arguments"
         exit 1
     fi
 
-    # Check if file name is readable or exists
+    # check if file name is readable or exists
     if [ ! -r $1 ]; then
         >&2 echo "file error"
         exit 1
     fi
 
-    # memory map the file to an array of lines if files passed
+    # memory map the file to an array of lines if a file name passed
     # otherwise mapfile defaults to stdin
     if [ $# -eq 0 ]; then
         mapfile _matrix
@@ -276,8 +288,8 @@ mean() {
 
     # use process substitution to pass matrix output to transpose function
     # and get resulting output passed to the mapfile command
-    # therefore getting an array of transposed lines for easier column processing
-    # in the resulting array, each line is a column instead of a row
+    # to get an array of transposed lines for easier column processing
+    # note: in the resulting array, each line is a column instead of a row
     mapfile columns < <(printf "%s" "${_matrix[@]}" | transpose)
     mean_line=() #output line
 
@@ -287,7 +299,7 @@ mean() {
     rows=$tmp
 
     eol=$(( rows - 1 ))
-    #average each line in the columns array
+    # average each line in the columns array
     # the ! is array syntax for expanding the indeces instead of elements
     for i in "${!columns[@]}"; do
         # create array from the line as we did in other function
