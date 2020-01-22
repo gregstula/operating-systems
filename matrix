@@ -117,6 +117,7 @@ add() {
 }
 
 # transpose function
+#
 # desc: transforms a MxN matrix into a NxM matrix
 # input: a single argument or if none is provided check stdin
 # output: prints a transposed matrix
@@ -326,6 +327,6 @@ mean() {
 }
 
 
-# Call the function named by argument 1, with the remaining arguments passed to it
+# call the function named by argument 1, with the remaining arguments passed to it
 $1 "${@:2}"
 
