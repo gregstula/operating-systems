@@ -310,7 +310,7 @@ mean() {
     done
 
     # format print the final output line
-    printf "%s" "$mean_line"
+    printf "%s\n" "$mean_line"
 }
 
 
