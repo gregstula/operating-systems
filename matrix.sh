@@ -88,7 +88,7 @@ add() {
     mapfile matrix2 < $2
 
     # iterate over the indeces of the first matrix
-    # the ! sign means give us a indeces the @ sign means of every element
+    # the ! sign means give us a indeces the @ sign means of the entire array
     # each index refers to a line (aka row)
     for i in "${!matrix1[@]}"; do
 
@@ -111,10 +111,8 @@ add() {
                 sum_row+=$'\t' #matrix is tab seperated
             fi
         done
-        # IFS controls how the values of the array are delimited
-        # the default vaulues remove tabs but we want to print those literally
-        # we use sub process here to avoid changing it for the other loops
-        (IFS='\n'; echo ${sum_row[@]})
+        # format print each row of the sum matrix
+        printf "%s\n" "$sum_row"
     done
 }
 
@@ -136,13 +134,13 @@ transpose() {
     # memory map the file to an array of lines if files passed
     # otherwise mapfile defaults to stdin
     if [ $# -eq 0 ]; then
-        mapfile dim_matrix
+        mapfile transpose_matrix
     else
-       mapfile dim_matrix < $1
+       mapfile transpose_matrix < $1
     fi
 
-    # turn output of dims function into array with dims and set dimensions
-    dim_array=($(dims $1))
+    # turn output of dims function into array with dims and get dimensions
+    dim_array=($(printf "%s" "${transpose_matrix[@]}" | dims))
 
     rows=${dim_array[0]}
     cols=${dim_array[1]}
@@ -155,8 +153,9 @@ transpose() {
         new_row=()
 
         # get and iterate over all ideces j for the array of rows (matrix)
-        for j in "${!dim_matrix[@]}"; do
-            line_array=(${dim_matrix[j]})
+        # the ! is array syntax for expanding the indeces instead of elements
+        for j in "${!transpose_matrix[@]}"; do
+            line_array=(${transpose_matrix[j]})
 
             # append new row and add tab if not last element of new row
             new_row+=${line_array[i]}
@@ -164,8 +163,8 @@ transpose() {
                 new_row+=$'\t' #matrix is tab seperated
             fi
         done
-        # same as addition printing, set IFS in a subprocess to keep tabs
-        (IFS=''; echo ${new_row[@]})
+        # format print each new transposed row
+        printf "%s\n" "$new_row"
     done
 }
 
@@ -239,9 +238,79 @@ multiply() {
             fi
             sum=0
         done
-        #output current product row with IFS method (described in addition function) for tabs
-        (IFS=''; echo ${product_row[@]})
+        #format print each row
+        printf "%s\n" "$product_row"
     done
+}
+
+mean() {
+    # Test that only a singular argument was passed
+    # >&2 redirects output to stderr
+    # >/dev/null is added to avoid also outputting to stdout
+    if [ $# -gt 1 ]; then
+        >&2 echo "Too many arguments"
+        exit 1
+    fi
+
+    # Check if file name is readable or exists
+    if [ ! -r $1 ]; then
+        >&2 echo "file error"
+        exit 1
+    fi
+
+    # memory map the file to an array of lines if files passed
+    # otherwise mapfile defaults to stdin
+    if [ $# -eq 0 ]; then
+        mapfile _matrix
+    else
+       mapfile _matrix < $1
+    fi
+
+    # turn output of dims function into array with dims and set dimensions
+    dim_array=($(printf "%s" "${_matrix[@]}" | dims))
+
+    rows=${dim_array[0]}
+    cols=${dim_array[1]}
+
+
+
+    # use process substitution to pass matrix output to transpose function
+    # and get resulting output passed to the mapfile command
+    # therefore getting an array of transposed lines for easier column processing
+    # in the resulting array, each line is a column instead of a row
+    mapfile columns < <(printf "%s" "${_matrix[@]}" | transpose)
+    mean_line=() #output line
+
+    # swap dimensions after transposing
+    tmp=$cols
+    cols=$rows
+    rows=$tmp
+
+    eol=$(( rows - 1 ))
+    #average each line in the columns array
+    # the ! is array syntax for expanding the indeces instead of elements
+    for i in "${!columns[@]}"; do
+        # create array from the line as we did in other function
+        col=(${columns[i]})
+        mean=0 # initialize/reset accumulator for mean
+        for num in "${col[@]}"; do
+            mean=$((mean + num)) #accumulate the sum of the column
+        done
+        # using integer rounded division forumula from assignment directions
+        # (a + (b/2)*( (a>0)*2-1 )) / b
+        mean=$(( (mean + (cols/2)*( (mean>0)*2-1 )) / cols ))
+
+        # append the output line
+        mean_line+=$mean
+
+        # add a tab unless at the end of the line
+        if [ $i -ne $eol ]; then
+            mean_line+=$'\t'
+        fi
+    done
+
+    # format print the final output line
+    printf "%s" "$mean_line"
 }
 
 
