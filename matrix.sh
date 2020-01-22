@@ -192,45 +192,56 @@ multiply() {
     dims_array2=($(dims $2))
 
 
-    rows1=${dims_array1[0]} # product row size M
+    rows1=${dims_array1[0]} # M
     cols1=${dims_array1[1]} # N
 
     rows2=${dims_array2[0]} # N
-    cols2=${dims_array2[1]} # product cols size P
+    cols2=${dims_array2[1]} # P
 
-    product_row=$rows1
-    product_col=$cols2
+    # product rol will be MxP so the last tab will be at P-1
+    eol=$(( cols2 - 1 ))
 
     # Check that matrices are MxN and NxP
     # we do this by checking that N = N
-    if [ "$cols1" != "$rows2" ]; then
+    if [ $cols1 -ne $rows2 ]; then
         >&2 echo "Multiplication not possible."
         exit 1;
     fi
 
-    # read the first matrix file
+    # map the matrix file into array of lines
     mapfile matrix_1 < $1
-#    echo "${matrix_1[@]}"
+    mapfile matrix_2 < $2
 
-    # transpose the second matrix so we can treat it's cols as lines
-    # we use process subsitution to let mapfile grab the sunshell output and give us an array of lines
-    mapfile matrix_2 < <(transpose $2)
-#    echo "${matrix_2[@]}"
+    # iterate over the number of rows in matrix 1
+    for (( i=0; i < rows1; i++ )); do
+        product_row=()
+        # iterate over the number of cols in matrix 2
+        for (( j=0; j < cols2; j++ )); do
+            # in this inner loop j is the index of the current column in matrix2
+            for (( k=0; k < rows2; k++ )); do
+                # get the current row of the first matrix as an array of nums
+                line1=(${matrix_1[i]})
 
-    product_matrix=()
-    #for loop over both and multiply each index accumulate to a sum add to sum
-    sum=0
-    for ((i=0; i < product_col; i++)); do
-        line1=(${matrix_1[i]})
-        line2=(${matrix_2[i]})
-        for j in ${!line1[@]}; do
-                sum=$(( $sum + ${line1[j]} * ${line2[j]} ))
+                #get the next row of the current colum in the second matrix as an array of nums
+                line2=(${matrix_2[k]})
+
+                #multiply the corresponding number in the current line1 row
+                # with the number in the current line 2 col
+                #accumulate in a sum var
+                sum=$(( sum + ${line1[k]} * ${line2[j]} ))
+            done
+            # reset the sum var to zero to get the next product column value for this product row
+            # append the final product of this iteration as a column in the product row
+             # tab seperated if not last number in row
+            product_row+=$sum
+            if [ $j -ne $eol ]; then
+                product_row+=$'\t'
+            fi
+            sum=0
         done
-        echo $sum
+        #output current product row with IFS method (described in addition function) for tabs
+        (IFS=''; echo ${product_row[@]})
     done
-    #append final sum to new array product_col times
-    #print
-    # do everything again product_row times
 }
 
 
