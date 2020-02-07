@@ -31,9 +31,8 @@ struct Room {
  * input: array of 10 strings
  * output: dynamically allocated array of 7 randomly selected strings
  *
- * Assumptions: Caller will free
+ * Assumptions: Caller will free strings
  */
-
 char** random_rooms(char* rooms[MAX_ROOMS]) {
     /* loop counter */
     int max = MAX_CHOSEN; /* choose 7 out 10 rooms */
@@ -81,7 +80,7 @@ char** random_rooms(char* rooms[MAX_ROOMS]) {
  * Creates START_ROOM and END_ROOM randomly
  * Adds random connections
  *
- * Assumptions: caller will free
+ * Assumptions: caller will free with provided free function
  *
  */
 Room** create_room_map(char** chosen) {
@@ -195,9 +194,13 @@ char* room_type_to_string(Room r) {
 void free_room_map(Room** room_map) {
     int i;
     for(i = 0; i < MAX_CHOSEN; i++) {
+        /* free string */
+        free(room_map[i]->name);
+        /* free struct */
         free(room_map[i]);
         room_map[i] = NULL;
     }
+    /* free array */
     free(room_map);
     room_map = NULL;
 }
@@ -264,7 +267,10 @@ int main(void) {
             // TODO: loop connections and print
 
             /* write room type*/
-            fprintf(fptr, "ROOM TYPE: %s\n", room_type_to_string(*room_map[i]));
+            char* type_name = room_type_to_string(*room_map[i]);
+            fprintf(fptr, "ROOM TYPE: %s\n", type_name);
+            /* free string */
+            free(type_name);
         }
 
         /* free string */
@@ -274,6 +280,7 @@ int main(void) {
     }
     /* free string array */
     free(chosen_strs);
+    free_room_map(room_map);
     return 0;
 }
 
