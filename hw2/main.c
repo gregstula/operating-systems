@@ -11,10 +11,11 @@
 #define TRUE 1
 #define FALSE 0
 #define MAX_ROOMS 10
+#define MAX_CHOSEN 8
 typedef int bool;
 
 char** random_rooms(char* rooms[MAX_ROOMS]) {
-    int max = 7; /* choose 7 out 10 rooms */
+    int max = MAX_CHOSEN; /* choose 7 out 10 rooms */
     int count = 0;
     char** chosen = malloc(sizeof(char*) * MAX_ROOMS); /* output buffer */
     char** room_strings = rooms; /* for iteration */
@@ -33,8 +34,13 @@ char** random_rooms(char* rooms[MAX_ROOMS]) {
          * potentially non-halting
          */
         if (!is_selected[index]) {
-            chosen[count] = malloc(sizeof(char) * strlen(*(room_strings + index)));
-            strcpy(chosen[count], *(room_strings + index));
+            /* pointer to current string */
+            char** curr = room_strings + index;
+            /* size of current string plus null character*/
+            size_t memsize = sizeof(char) * (strlen(*curr) + 1);
+
+            chosen[count] = malloc(memsize);
+            strcpy(chosen[count], *curr);
             count++;
         }
     }
@@ -66,9 +72,11 @@ int main(void) {
     }
 
     char** strs = random_rooms(rooms);
-    while (*strs) {
-        printf("%s\n", *strs++);
+    int i;
+    for (i = 0; i < MAX_CHOSEN; i++) {
+        printf("%s\n", strs[i]);
+        free(strs[i]);
     }
-
+    free(strs);
     return 0;
 }

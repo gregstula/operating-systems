@@ -1,4 +1,4 @@
 all:
-	gcc -Wall -Werror -o stulag.buildrooms main.c -lpthread
+	gcc -g -Wall -pedantic -o stulag.buildrooms main.c -lpthread
 clean:
 	@rm *.o
