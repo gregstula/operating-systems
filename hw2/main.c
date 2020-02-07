@@ -74,8 +74,8 @@ int main(void) {
     FILE* fptr;
 
     /* chosen rooms */
-    /* must free */
-    char** strs = random_rooms(rooms);
+    /* must free strings and array*/
+    char** chosen_strs = random_rooms(rooms);
 
     /* iterator and-or indexer*/
     int i;
@@ -87,9 +87,6 @@ int main(void) {
 
     sprintf(room_dir, "%s.%d", dir_prefix, pid);
 
-    /* debug */
-    printf("%s", room_dir);
-
     /* create rooms directory */
     if (mkdir(room_dir,0777) && errno != EEXIST) {
         fprintf(stderr,"Directory creation error\n");
@@ -98,17 +95,34 @@ int main(void) {
 
     /* create room files and free dynamically allocated string array */
     for (i = 0; i < MAX_CHOSEN; i++) {
-        printf("%s\n", strs[i]);
+        printf("%s\n", chosen_strs[i]);
 
         /* clear room_filename var*/
         memset(room_filename, '\0', sizeof(char) * ENOUGH_SPACE);
 
         /* create file name for each room*/
-        sprintf(room_filename, "%s/%s%s", room_dir, strs[i], filename_postfix);
+        sprintf(room_filename, "%s/%s%s", room_dir, chosen_strs[i], filename_postfix);
+
+        /* DEBUG */
         printf("%s\n", room_filename);
-        free(strs[i]);
+
+        /* open file
+         * remember to close at end of scope */
+        fptr = fopen(room_filename, "w");
+        if (fptr == NULL) {
+            fprintf(stderr,"Failed to create %s :(\n", room_filename);
+        } else {
+            fprintf(fptr, "ROOM NAME: %s", chosen_strs[i]);
+        }
+
+
+        /* free string */
+        free(chosen_strs[i]);
+        /* close file */
+        fclose(fptr);
     }
-    free(strs);
+    /* free string array */
+    free(chosen_strs);
     return 0;
 }
 
