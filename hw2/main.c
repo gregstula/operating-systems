@@ -7,12 +7,13 @@
 #include <stdlib.h>
 #include <time.h>
 
-/* c89 means old style comments and bool defs */
-#define TRUE 1
-#define FALSE 0
+/* compile time constants */
 #define MAX_ROOMS 10
 #define MAX_CHOSEN 8
-typedef int bool;
+#define ENOUGH_SPACE 256
+
+/* bools */
+typedef enum bool { FALSE, TRUE} bool;
 
 char** random_rooms(char* rooms[MAX_ROOMS]) {
     int max = MAX_CHOSEN; /* choose 7 out 10 rooms */
@@ -42,41 +43,73 @@ char** random_rooms(char* rooms[MAX_ROOMS]) {
             chosen[count] = malloc(memsize);
             strcpy(chosen[count], *curr);
             count++;
+            is_selected[index] = TRUE;
         }
     }
     return chosen;
 }
 
+typedef enum room_type { START_ROOM, END_ROOM, MID_ROOM } room_type;
+
+typedef struct room_struct {
+    /* max room name per directions is 8 chars + null */
+    char name[9];
+    char** connections;
+    room_type type;
+
+} room_struct;
+
+
 int main(void) {
-    /* create rooms directory */
     /* room names */
-    char* rooms[10] = {"dungeon", "twisty", "stulas", "hellish", "bjarne", "dennis", "ascii", "unicode", "standard", "holy" };
+    char* rooms[MAX_ROOMS] = {"dungeon", "twisty", "stulas", "hellish", "bjarne", "dennis", "ascii", "unicode", "standard", "holy" };
     /* buffers */
-    char room_dir[100];
+    char room_dir[ENOUGH_SPACE];
 
     /* generate dir dame fro PID */
     char dir_prefix[] = "stulag.rooms";
-    int pid = getpid();
+    int pid =  getpid();
 
     /* file pointer */
-    //FILE* fptr;
+    FILE* fptr;
+
+    /* chosen rooms */
+    /* must free */
+    char** strs = random_rooms(rooms);
+
+    /* iterator and-or indexer*/
+    int i;
+    char room_filename[ENOUGH_SPACE];
+    char* filename_postfix = "_room";
+
+    /* clear array */
+    memset(room_dir, '\0', sizeof(char) * ENOUGH_SPACE);
 
     sprintf(room_dir, "%s.%d", dir_prefix, pid);
 
     /* debug */
     printf("%s", room_dir);
 
+    /* create rooms directory */
     if (mkdir(room_dir,0777) && errno != EEXIST) {
         fprintf(stderr,"Directory creation error\n");
         return -1;
     }
 
-    char** strs = random_rooms(rooms);
-    int i;
+    /* create room files and free dynamically allocated string array */
     for (i = 0; i < MAX_CHOSEN; i++) {
         printf("%s\n", strs[i]);
+
+        /* clear room_filename var*/
+        memset(room_filename, '\0', sizeof(char) * ENOUGH_SPACE);
+
+        /* create file name for each room*/
+        sprintf(room_filename, "%s/%s%s", room_dir, strs[i], filename_postfix);
+        printf("%s\n", room_filename);
         free(strs[i]);
     }
     free(strs);
     return 0;
 }
+
+
