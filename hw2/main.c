@@ -9,7 +9,8 @@
 
 /* compile time constants */
 #define MAX_ROOMS 10
-#define MAX_CHOSEN 8
+#define MAX_CHOSEN 7
+#define MAX_CONNECTIONS 6
 #define ENOUGH_SPACE 256
 
 /* bools */
@@ -21,56 +22,103 @@ typedef struct Room Room;
 
 struct Room {
     /* max room name per directions is 8 chars + null */
+    int id;
     char* name;
-    //Room** connections;
+    Room** connections;
     room_type type;
-
 };
 
-/* random_roooms
- * input: array of 10 strings
- * output: dynamically allocated array of 7 randomly selected strings
- *
- * Assumptions: Caller will free strings
+/* add_connection
+ * Assumption: is run internall in create_room_map create_connections
+ * input: two pointers to room structs to connect
+ * desc: a helper function for the helper function create_connections
+ * used in iitialialization of ROOM_MAP
  */
-char** random_rooms(char* rooms[MAX_ROOMS]) {
-    /* loop counter */
-    int max = MAX_CHOSEN; /* choose 7 out 10 rooms */
-    int count = 0;
+bool add_connection(Room* room, Room* room2) {
 
-    char** chosen = malloc(sizeof(char*) * MAX_ROOMS); /* output buffer */
-    char** room_strings = rooms; /* for iteration */
+    int i;
+    int at_index; /* where we connect back */
+    int at_index2;
+    bool can_connect = TRUE;
 
-    bool is_selected[MAX_ROOMS]; /* track selected via index */
-    memset(is_selected, FALSE, sizeof(bool) * MAX_ROOMS);
+    // do I have this connection?
+    for ( i = 0; i < MAX_CONNECTIONS; i++) {
+        Room* r = room->connections[i];
+        if (r) {
+            if(r->id == room2->id) {
+                return  FALSE;
+            }
+        }
+    }
 
+    /* Do I have space for this connection? */
+    /* where?? */
+    for (i = 0; i < MAX_CONNECTIONS; i++) {
+        if (room->connections[i] == NULL) {
+            at_index = i;
+            can_connect = TRUE;
+            break;
+        }
+    }
+
+    if (!can_connect) return FALSE;
+
+    /* do you have space? also where? */
+    can_connect = FALSE;
+    for (i = 0; i < MAX_CONNECTIONS; i++) {
+        if (room2->connections[i] == NULL) {
+            can_connect = TRUE;
+            at_index2 = i;
+            break;
+        }
+    }
+
+    /* cool, let's connect */
+    if (can_connect) {
+        room->connections[at_index] = room2;
+        room2->connections[at_index2] = room;
+        return TRUE;
+    }
+    return FALSE;
+}
+
+/*
+ * create_connections
+ * desc: internal helper function for create_room_map
+ * Creates random room connections
+ * Connection cannot be to self
+ * For every out connection there must be an in_connection
+ * that points back
+ * Assumes initialization
+ * Freeing is handled free_room_map
+ */
+void create_connections(Room** rooms) {
+
+    int i;
     /* seed rng */
     srand((unsigned) time(NULL));
 
-    while (count < max) {
-        int index = rand() % MAX_ROOMS;
-        /* if we haven't already picked this room
-         * then add it to the chosen rooms
-         * otherwise try again...
-         * potentially non-halting, but not really in practice
-         */
-        if (!is_selected[index]) {
-            /* pointer to current string */
-            char** curr = room_strings + index;
-            /* size of current string plus null character*/
-            size_t memsize = sizeof(char) * (strlen(*curr) + 1);
+    for (i = 0; i < MAX_CHOSEN; i++) {
+        /* allocate connections array with NULL aka 0 */
+        /* calloc allcoates and zeres the memory */
+        rooms[i]->connections = calloc(MAX_CONNECTIONS, sizeof(Room*));
 
-            chosen[count] = malloc(memsize);
-            strcpy(chosen[count], *curr);
-            count++;
+    }
 
-            /* don't pick the same name twice */
-            is_selected[index] = TRUE;
+    for (i = 0; i < MAX_CHOSEN; i++) {
+        int j; /* for second loop */
+
+       /* Room pointer represents a connection
+        * add a connection where we can
+        */
+        for (j = 0; j < MAX_CONNECTIONS; j++) {
+            int rindex; /* random index */
+            /* get random index, try again if it is the current one */
+            while ((rindex = rand() % MAX_CHOSEN) == i) continue;
+            add_connection(rooms[i],rooms[rindex]);
         }
     }
-    return chosen;
 }
-
 
 /**
  * create_room_map
@@ -109,6 +157,8 @@ Room** create_room_map(char** chosen) {
         /* if not initialized then initialize
          * similar to random room selection above */
         if (!is_initalized[index]) {
+            /* set id */
+            rooms[count]->id = count;
             /* set room type so first position is start_room
              * and end position is end_room */
            if (count == 0) {
@@ -137,9 +187,10 @@ Room** create_room_map(char** chosen) {
         }
 
     }
-
+    create_connections(rooms);
     return rooms;
 }
+
 
 /*
  * room_type_to_string
@@ -196,6 +247,8 @@ void free_room_map(Room** room_map) {
     for(i = 0; i < MAX_CHOSEN; i++) {
         /* free string */
         free(room_map[i]->name);
+        /* free connections array */
+        free(room_map[i]->connections);
         /* free struct */
         free(room_map[i]);
         room_map[i] = NULL;
@@ -204,6 +257,52 @@ void free_room_map(Room** room_map) {
     free(room_map);
     room_map = NULL;
 }
+
+
+/* random_roooms
+ * input: array of 10 strings
+ * output: dynamically allocated array of 7 randomly selected strings
+ *
+ * Assumptions: Caller will free strings
+ */
+char** random_rooms(char* rooms[MAX_ROOMS]) {
+    /* loop counter */
+    int max = MAX_CHOSEN; /* choose 7 out 10 rooms */
+    int count = 0;
+
+    char** chosen = malloc(sizeof(char*) * MAX_ROOMS); /* output buffer */
+    char** room_strings = rooms; /* for iteration */
+
+    bool is_selected[MAX_ROOMS]; /* track selected via index */
+    memset(is_selected, FALSE, sizeof(bool) * MAX_ROOMS);
+
+    /* seed rng */
+    srand((unsigned) time(NULL));
+
+    while (count < max) {
+        int index = rand() % MAX_ROOMS;
+        /* if we haven't already picked this room
+         * then add it to the chosen rooms
+         * otherwise try again...
+         * potentially non-halting, but not really in practice
+         */
+        if (!is_selected[index]) {
+            /* pointer to current string */
+            char** curr = room_strings + index;
+            /* size of current string plus null character*/
+            size_t memsize = sizeof(char) * (strlen(*curr) + 1);
+
+            chosen[count] = malloc(memsize);
+            strcpy(chosen[count], *curr);
+            count++;
+
+            /* don't pick the same name twice */
+            is_selected[index] = TRUE;
+        }
+    }
+    return chosen;
+}
+
 
 
 int main(void) {
@@ -261,10 +360,19 @@ int main(void) {
             /* print to stderr if problem */
             fprintf(stderr,"Failed to create %s :(\n", room_filename);
         } else {
+            int j;
+            int conn_count = 1; /* to print */
             /* write name*/
             fprintf(fptr, "ROOM NAME: %s\n", room_map[i]->name);
 
             // TODO: loop connections and print
+            for( j = 0; j < MAX_CONNECTIONS; j++) {
+                Room* conn = room_map[i]->connections[j];
+                if (conn != NULL) {
+                    printf("CONNECTION %d: %s\n", conn_count, conn->name);
+                    conn_count++;
+                }
+            }
 
             /* write room type*/
             char* type_name = room_type_to_string(*room_map[i]);
