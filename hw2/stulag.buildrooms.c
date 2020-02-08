@@ -21,7 +21,8 @@
 #define ENOUGH_SPACE 256
 
 /* bools */
-typedef enum bool { FALSE, TRUE } bool;
+typedef enum bool { FALSE,
+    TRUE } bool;
 
 typedef enum room_type {
     START_ROOM,
