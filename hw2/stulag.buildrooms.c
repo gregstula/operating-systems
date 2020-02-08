@@ -1,11 +1,18 @@
-#include <stdio.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <unistd.h>
+/* Gregory D Stula
+* Assignment 2
+* 2020-02-07
+* CS 344 Winter 2020
+*
+*/
+
 #include <errno.h>
-#include <string.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <time.h>
+#include <unistd.h>
 
 /* compile time constants */
 #define MAX_ROOMS 10
@@ -14,9 +21,13 @@
 #define ENOUGH_SPACE 256
 
 /* bools */
-typedef enum bool { FALSE, TRUE} bool;
+typedef enum bool { FALSE, TRUE } bool;
 
-typedef enum room_type { START_ROOM, END_ROOM, MID_ROOM } room_type;
+typedef enum room_type {
+    START_ROOM,
+    END_ROOM,
+    MID_ROOM
+} room_type;
 
 typedef struct Room Room;
 
@@ -34,7 +45,8 @@ struct Room {
  * desc: a helper function for the helper function create_connections
  * used in iitialialization of ROOM_MAP
  */
-bool add_connection(Room* room, Room* room2) {
+bool add_connection(Room* room, Room* room2)
+{
 
     int i;
     int at_index; /* where we connect back */
@@ -42,11 +54,11 @@ bool add_connection(Room* room, Room* room2) {
     bool can_connect = TRUE;
 
     // do I have this connection?
-    for ( i = 0; i < MAX_CONNECTIONS; i++) {
+    for (i = 0; i < MAX_CONNECTIONS; i++) {
         Room* r = room->connections[i];
         if (r) {
-            if(r->id == room2->id) {
-                return  FALSE;
+            if (r->id == room2->id) {
+                return FALSE;
             }
         }
     }
@@ -92,30 +104,30 @@ bool add_connection(Room* room, Room* room2) {
  * Assumes initialization
  * Freeing is handled free_room_map
  */
-void create_connections(Room** rooms) {
+void create_connections(Room** rooms)
+{
 
     int i;
     /* seed rng */
-    srand((unsigned) time(NULL));
+    srand((unsigned)time(NULL));
 
     for (i = 0; i < MAX_CHOSEN; i++) {
         /* allocate connections array with NULL aka 0 */
         /* calloc allcoates and zeres the memory */
         rooms[i]->connections = calloc(MAX_CONNECTIONS, sizeof(Room*));
-
     }
 
     for (i = 0; i < MAX_CHOSEN; i++) {
         int j; /* for second loop */
 
-       /* Room pointer represents a connection
+        /* Room pointer represents a connection
         * add a connection where we can
         */
         for (j = 0; j < MAX_CONNECTIONS; j++) {
             int rindex; /* random index */
             /* get random index, try again if it is the current one */
             while ((rindex = rand() % MAX_CHOSEN) == i) continue;
-            add_connection(rooms[i],rooms[rindex]);
+            add_connection(rooms[i], rooms[rindex]);
         }
     }
 }
@@ -131,7 +143,8 @@ void create_connections(Room** rooms) {
  * Assumptions: caller will free with provided free function
  *
  */
-Room** create_room_map(char** chosen) {
+Room** create_room_map(char** chosen)
+{
     /* loop counter */
     int max = MAX_CHOSEN; /* we chose 7 rooms */
     int count = 0;
@@ -147,7 +160,7 @@ Room** create_room_map(char** chosen) {
     memset(is_initalized, FALSE, sizeof(bool) * MAX_ROOMS);
 
     /* seed rng */
-    srand((unsigned) time(NULL));
+    srand((unsigned)time(NULL));
     while (count < max) {
         /* note: index is used for tracking random strings
          * count is used for the index of the Room array */
@@ -161,7 +174,7 @@ Room** create_room_map(char** chosen) {
             rooms[count]->id = count;
             /* set room type so first position is start_room
              * and end position is end_room */
-           if (count == 0) {
+            if (count == 0) {
                 rooms[count]->type = START_ROOM;
             }
             else if (count == 6) {
@@ -171,7 +184,7 @@ Room** create_room_map(char** chosen) {
                 rooms[count]->type = MID_ROOM;
             }
 
-             /*** set name ***/
+            /*** set name ***/
             /* pointer to randomly chosen name */
             char** curr_name = chosen + index;
 
@@ -180,17 +193,14 @@ Room** create_room_map(char** chosen) {
             rooms[count]->name = malloc(memsize);
             strcpy(rooms[count]->name, *curr_name);
 
-
             /* increment counter, set index flag */
             count++;
             is_initalized[index] = TRUE;
         }
-
     }
     create_connections(rooms);
     return rooms;
 }
-
 
 /*
  * room_type_to_string
@@ -198,7 +208,8 @@ Room** create_room_map(char** chosen) {
  * output: c-string
  * converts room type to string
  */
-char* room_type_to_string(Room r) {
+char* room_type_to_string(Room r)
+{
     room_type t = r.type;
 
     char* name;
@@ -208,28 +219,27 @@ char* room_type_to_string(Room r) {
     char end[] = "END_ROOM";
 
     switch (t) {
-        case START_ROOM:
-            name = malloc(sizeof(char) * (strlen(start) + 1));
-            strcpy(name, start);
-            break;
+    case START_ROOM:
+        name = malloc(sizeof(char) * (strlen(start) + 1));
+        strcpy(name, start);
+        break;
 
-        case MID_ROOM:
-            name = malloc(sizeof(char) * (strlen(mid) + 1));
-            strcpy(name, mid);
-            break;
+    case MID_ROOM:
+        name = malloc(sizeof(char) * (strlen(mid) + 1));
+        strcpy(name, mid);
+        break;
 
-        case END_ROOM:
-            name = malloc(sizeof(char) * (strlen(end) + 1));
-            strcpy(name, end);
-            break;
+    case END_ROOM:
+        name = malloc(sizeof(char) * (strlen(end) + 1));
+        strcpy(name, end);
+        break;
 
-        default:
-            name = NULL;
+    default:
+        name = NULL;
     }
 
     return name;
 }
-
 
 /*
  * free_room_map()
@@ -242,9 +252,10 @@ char* room_type_to_string(Room r) {
  * to be called after make_room_map
  *
  */
-void free_room_map(Room** room_map) {
+void free_room_map(Room** room_map)
+{
     int i;
-    for(i = 0; i < MAX_CHOSEN; i++) {
+    for (i = 0; i < MAX_CHOSEN; i++) {
         /* free string */
         free(room_map[i]->name);
         /* free connections array */
@@ -258,14 +269,14 @@ void free_room_map(Room** room_map) {
     room_map = NULL;
 }
 
-
 /* random_roooms
  * input: array of 10 strings
  * output: dynamically allocated array of 7 randomly selected strings
  *
  * Assumptions: Caller will free strings
  */
-char** random_rooms(char* rooms[MAX_ROOMS]) {
+char** random_rooms(char* rooms[MAX_ROOMS])
+{
     /* loop counter */
     int max = MAX_CHOSEN; /* choose 7 out 10 rooms */
     int count = 0;
@@ -277,7 +288,7 @@ char** random_rooms(char* rooms[MAX_ROOMS]) {
     memset(is_selected, FALSE, sizeof(bool) * MAX_ROOMS);
 
     /* seed rng */
-    srand((unsigned) time(NULL));
+    srand((unsigned)time(NULL));
 
     while (count < max) {
         int index = rand() % MAX_ROOMS;
@@ -303,17 +314,16 @@ char** random_rooms(char* rooms[MAX_ROOMS]) {
     return chosen;
 }
 
-
-
-int main(void) {
+int main(void)
+{
     /* room names */
-    char* rooms[MAX_ROOMS] = {"dungeon", "twisty", "stulas", "hellish", "bjarne", "dennis", "ascii", "unicode", "standard", "holy" };
+    char* rooms[MAX_ROOMS] = { "dungeon", "twisty", "stulas", "hellish", "bjarne", "dennis", "ascii", "unicode", "standard", "holy" };
     /* buffers */
     char room_dir[ENOUGH_SPACE];
 
     /* generate dir dame fro PID */
     char dir_prefix[] = "stulag.rooms";
-    int pid =  getpid();
+    int pid = getpid();
 
     /* file pointer */
     FILE* fptr;
@@ -333,16 +343,14 @@ int main(void) {
 
     sprintf(room_dir, "%s.%d", dir_prefix, pid);
 
-
     /* create rooms directory */
-    if (mkdir(room_dir,0777) && errno != EEXIST) {
-        fprintf(stderr,"Directory creation error\n");
+    if (mkdir(room_dir, 0777) && errno != EEXIST) {
+        fprintf(stderr, "Directory creation error\n");
         return -1;
     }
 
     /* create room files and free dynamically allocated string array */
     for (i = 0; i < MAX_CHOSEN; i++) {
-        printf("%s\n", chosen_strs[i]);
 
         /* clear room_filename var*/
         memset(room_filename, '\0', sizeof(char) * ENOUGH_SPACE);
@@ -350,26 +358,24 @@ int main(void) {
         /* create file name for each room*/
         sprintf(room_filename, "%s/%s%s", room_dir, room_map[i]->name, filename_postfix);
 
-        /* DEBUG */
-        printf("%s\n", room_filename);
-
         /* open file
          * remember to close at end of scope */
         fptr = fopen(room_filename, "w");
         if (fptr == NULL) {
             /* print to stderr if problem */
-            fprintf(stderr,"Failed to create %s :(\n", room_filename);
-        } else {
+            fprintf(stderr, "Failed to create %s :(\n", room_filename);
+        }
+        else {
             int j;
             int conn_count = 1; /* to print */
             /* write name*/
             fprintf(fptr, "ROOM NAME: %s\n", room_map[i]->name);
 
             // TODO: loop connections and print
-            for( j = 0; j < MAX_CONNECTIONS; j++) {
+            for (j = 0; j < MAX_CONNECTIONS; j++) {
                 Room* conn = room_map[i]->connections[j];
                 if (conn != NULL) {
-                    printf("CONNECTION %d: %s\n", conn_count, conn->name);
+                    fprintf(fptr, "CONNECTION %d: %s\n", conn_count, conn->name);
                     conn_count++;
                 }
             }
@@ -391,5 +397,3 @@ int main(void) {
     free_room_map(room_map);
     return 0;
 }
-
-
