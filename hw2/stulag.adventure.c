@@ -4,8 +4,8 @@
 * CS 344 Winter 2020
 *
 */
-#include <dirent.h>
 #include <pthread.h>
+#include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -49,8 +49,8 @@ void free_array(char** arr, size_t size)
 {
     /* free steps tracking array */
     int i;
-    for (i = 0; i < size; i++) {
-        if (arr[i] == NULL) {
+    for (i=0; i < size; i++) {
+        if(arr[i] == NULL) {
             break;
         }
         free(arr[i]);
@@ -58,6 +58,7 @@ void free_array(char** arr, size_t size)
     }
     free(arr);
 }
+
 
 /* Process room data and print according to
  * assignment specs
@@ -98,12 +99,12 @@ char* process_room(char* room_name)
             strcpy(lines[line_count], line_buffer);
             line_count++;
         }
+        fclose(fptr); /* close file */
     }
     else {
         fprintf(stderr, "File error with %s\n", room_name);
     }
 
-    fclose(fptr); /* close file */
 
     /* get name of room */
     /* it is first line */
@@ -125,7 +126,7 @@ char* process_room(char* room_name)
         conn_count++;
     }
 
-    while (1) {
+   while (1) {
         /* print connections */
         printf("POSSIBLE CONNECTIONS: ");
         for (i = 0; i < conn_count - 1; i++) {
@@ -140,7 +141,7 @@ char* process_room(char* room_name)
         /* Handle time command by letting main thread know it occured */
         /* main function is responsible for dealing with this
          * this function does no tracking, only processing */
-        if (strcmp("time", ans) == 0) {
+        if (strcmp("time",ans) == 0) {
             /* caller must free */
             char* next = malloc(sizeof(char) * ENOUGH_SPACE);
             strcpy(next, ans);
@@ -209,6 +210,7 @@ char* get_newest_dirname(void)
     return newest_dir_name;
 }
 
+
 /* * * * * * * * * *
  * GLOBAL MUTEX    *
  * * * * * * * * * */
@@ -226,16 +228,16 @@ void* write_time(void* arg)
     char time_string[256];
     /* time data */
     time_t rawtime;
-    struct tm* time_info;
+    struct tm *time_info;
 
     /* unlock the mutex */
     pthread_mutex_lock(&lock);
     /* get newest directory and open it */
-    fptr = fopen("currentTime.txt", "w+");
+    fptr = fopen("currentTime.txt","w+");
 
     time(&rawtime);
     time_info = localtime(&rawtime);
-    strftime(time_string, 256, "%I:%M%P, %A, %B %d, %Y", time_info);
+    strftime(time_string, 256, "%I:%M%P, %A, %B %d, %Y",time_info);
     /* write the time */
     fprintf(fptr, "%s\n", time_string);
     /* close the file */
@@ -262,11 +264,17 @@ int main(void)
     FILE* fptr = NULL;
 
     /* buffers */
+    char tmp1[50];
+    char tmp2[50];
+
     char file_name[ENOUGH_SPACE];
     char line_buffer[ENOUGH_SPACE];
+
     char start_file[ENOUGH_SPACE];
-    char* next_room;
+    char start_room[ENOUGH_SPACE];
+
     char last_room[ENOUGH_SPACE];
+    char* next_room;
 
     /* loop counter */
     int i;
@@ -286,8 +294,6 @@ int main(void)
     /* null the array */
     null_array(step_strs, MAX_ARRAY);
 
-    /* lock the mutex */
-    pthread_mutex_lock(&lock);
 
     /* initialize the mutex */
     if (pthread_mutex_init(&lock, NULL) != 0) {
@@ -298,6 +304,7 @@ int main(void)
         closedir(dptr);
         return -1;
     }
+
 
     /* First find the start room */
     if (dptr != NULL) {
@@ -319,16 +326,39 @@ int main(void)
                         sprintf(start_file, "%s", file_name);
                     }
                     /* close file at end of scopt */
-                    fclose(fptr);
+                fclose(fptr);
                 }
             }
         }
+    } else {
+        fprintf(stderr, "\nERROR: No directories found.\nDid you forget run ./stulag.buildrooms?\n");
+        free_array(step_strs, MAX_ARRAY);
+        closedir(dptr);
+        return -1;
     }
+
+    /* get the name of the first room*/
+    /* first line is the room name */
+    fptr = fopen(start_file, "r+");
+    if (fptr) {
+        /*get first line */
+        fgets(line_buffer, sizeof(line_buffer), fptr);
+        fclose(fptr); /* close file */
+    } else {
+        fprintf(stderr, "\nERROR WITH FILE %s", start_file);
+        /* clean up */
+        free_array(step_strs, MAX_ARRAY);
+        closedir(dptr);
+        return -1;
+     }
+    sscanf(line_buffer, "%s %s %s\n", tmp1, tmp2, start_room); /* get the name */
+
+
+    /* lock the mutex */
+    pthread_mutex_lock(&lock);
 
     /* launch the time thread */
     result_code = pthread_create(&time_thread, NULL, &write_time, NULL);
-
-    /* initialize the mutex */
     if (result_code != 0) {
         /* OS error? */
         fprintf(stderr, "\nInitial thread creation has failed!\n Please try again\n");
@@ -340,42 +370,45 @@ int main(void)
 
     /* process inital room */
     next_room = process_room(start_file);
-    step_strs[steps] = malloc(sizeof(char) * 100);
-    /* add string to steps tracker and inc steps count */
-    strcpy(step_strs[steps], next_room);
-    steps++;
+    /* save the last room pocessed*/
+    strcpy(last_room, start_room);
 
-    /* save last room */
-    strcpy(last_room, next_room);
+    /* gaurd against case where first command is time */
+    if(strcmp("time",next_room) != 0) {
+        /* add string to steps tracker and inc steps count */
+        step_strs[steps] = malloc(sizeof(char) * 100);
+        strcpy(step_strs[steps], next_room);
+        steps++;
+    }
 
     /* game loop */
-    while (1) {
+        while (1) {
         /* formatting */
         puts("");
         puts("");
 
         /* THREADED TIME WRITING */
-
         /*if the last input was time read the time file */
-        if (strcmp("time", next_room) == 0) {
+        if(strcmp("time",next_room) == 0) {
             /*unlock the mutex*/
             pthread_mutex_unlock(&lock);
 
             /* join the thread */
             pthread_join(time_thread, NULL);
 
-            /* read time file */
-            fptr = fopen("currentTime.txt", "r+");
-            if (fptr) {
-                fgets(line_buffer, sizeof(line_buffer), fptr);
-                printf("\n%s\n", line_buffer);
-            }
-            else {
-                fprintf(stderr, "ERROR READING TIME FILE :( \n");
-            }
-
             /* relock the mutex */
             pthread_mutex_lock(&lock);
+
+            /* read time file */
+            fptr = fopen("currentTime.txt","r+");
+            if (fptr) {
+                fgets(line_buffer, sizeof(line_buffer), fptr);
+                /* print rhe time */
+                printf("%s\n", line_buffer);
+            }
+            else  {
+               fprintf(stderr, "ERROR READING TIME FILE :( \n");
+            }
 
             /* relaunch the thread */
             result_code = pthread_create(&time_thread, NULL, &write_time, NULL);
@@ -392,13 +425,12 @@ int main(void)
                 return -1;
             }
 
-            /* close file */
+            /* close the time file */
             fclose(fptr);
-            /* free memory*/
-            free(next_room);
-            /* resore last location */
+            /* restore last location */
             strcpy(next_room, last_room);
         }
+
 
         /* first check if we won */
         /* open file, remember to close at end of scope */
@@ -420,21 +452,23 @@ int main(void)
             }
             break;
         }
-        /* close file at end of scopt */
+        /* close file at end of scope */
         fclose(fptr);
 
-        /* free last room string */
-        free(next_room);
         /* save last room */
         strcpy(last_room, next_room);
-        /* process next room */
-        next_room = process_room(file_name);
 
         /* add string to steps tracker and inc steps count */
         step_strs[steps] = malloc(sizeof(char) * 100);
         strcpy(step_strs[steps], next_room);
         steps++;
+
+        /* free last room string */
+        free(next_room);
+        /* process next room */
+        next_room = process_room(file_name);
     }
+
     /* free end room string */
     free(next_room);
     /* close end room file */
@@ -448,5 +482,6 @@ int main(void)
     /* destroy mutex */
     pthread_mutex_destroy(&lock);
 
-    return 0;
+   return 0;
 }
+
