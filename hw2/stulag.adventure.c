@@ -373,21 +373,11 @@ int main(void)
     /* save the last room pocessed*/
     strcpy(last_room, start_room);
 
-    /* gaurd against case where first command is time */
-    if(strcmp("time",next_room) != 0) {
-        /* add string to steps tracker and inc steps count */
-        step_strs[steps] = malloc(sizeof(char) * 100);
-        strcpy(step_strs[steps], next_room);
-        steps++;
-    }
-
     /* game loop */
-        while (1) {
+    while (1) {
         /* formatting */
-        puts("");
-        puts("");
 
-        /* THREADED TIME WRITING */
+       /* THREADED TIME WRITING */
         /*if the last input was time read the time file */
         if(strcmp("time",next_room) == 0) {
             /*unlock the mutex*/
@@ -404,7 +394,7 @@ int main(void)
             if (fptr) {
                 fgets(line_buffer, sizeof(line_buffer), fptr);
                 /* print rhe time */
-                printf("%s\n", line_buffer);
+                printf("%s", line_buffer);
             }
             else  {
                fprintf(stderr, "ERROR READING TIME FILE :( \n");
@@ -429,11 +419,15 @@ int main(void)
             fclose(fptr);
             /* restore last location */
             strcpy(next_room, last_room);
+            /* get the next room without incrementing the steps logic */
+            sprintf(file_name, "%s/%s_room", dir_name, next_room);
+            next_room = process_room(file_name);
+            continue;
         }
 
 
         /* first check if we won */
-        /* open file, remember to close at end of scope */
+        /* get file name from room name */
         sprintf(file_name, "%s/%s_room", dir_name, next_room);
         /* close at end */
         fptr = fopen(file_name, "r+");
@@ -455,18 +449,18 @@ int main(void)
         /* close file at end of scope */
         fclose(fptr);
 
-        /* save last room */
-        strcpy(last_room, next_room);
-
         /* add string to steps tracker and inc steps count */
         step_strs[steps] = malloc(sizeof(char) * 100);
         strcpy(step_strs[steps], next_room);
         steps++;
 
+        /* save last room */
+        strcpy(last_room, next_room);
         /* free last room string */
         free(next_room);
         /* process next room */
         next_room = process_room(file_name);
+
     }
 
     /* free end room string */
