@@ -4,8 +4,8 @@
 * CS 344 Winter 2020
 *
 */
-#include <pthread.h>
 #include <dirent.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -49,8 +49,8 @@ void free_array(char** arr, size_t size)
 {
     /* free steps tracking array */
     int i;
-    for (i=0; i < size; i++) {
-        if(arr[i] == NULL) {
+    for (i = 0; i < size; i++) {
+        if (arr[i] == NULL) {
             break;
         }
         free(arr[i]);
@@ -125,7 +125,7 @@ char* process_room(char* room_name)
         conn_count++;
     }
 
-   while (1) {
+    while (1) {
         /* print connections */
         printf("POSSIBLE CONNECTIONS: ");
         for (i = 0; i < conn_count - 1; i++) {
@@ -140,7 +140,7 @@ char* process_room(char* room_name)
         /* Handle time command by letting main thread know it occured */
         /* main function is responsible for dealing with this
          * this function does no tracking, only processing */
-        if (strcmp("time",ans) == 0) {
+        if (strcmp("time", ans) == 0) {
             /* caller must free */
             char* next = malloc(sizeof(char) * ENOUGH_SPACE);
             strcpy(next, ans);
@@ -209,7 +209,6 @@ char* get_newest_dirname(void)
     return newest_dir_name;
 }
 
-
 /* * * * * * * * * *
  * GLOBAL MUTEX    *
  * * * * * * * * * */
@@ -227,16 +226,16 @@ void* write_time(void* arg)
     char time_string[256];
     /* time data */
     time_t rawtime;
-    struct tm *time_info;
+    struct tm* time_info;
 
     /* unlock the mutex */
     pthread_mutex_lock(&lock);
     /* get newest directory and open it */
-    fptr = fopen("currentTime.txt","w+");
+    fptr = fopen("currentTime.txt", "w+");
 
     time(&rawtime);
     time_info = localtime(&rawtime);
-    strftime(time_string, 256, "%I:%M%P, %A, %B %d, %Y",time_info);
+    strftime(time_string, 256, "%I:%M%P, %A, %B %d, %Y", time_info);
     /* write the time */
     fprintf(fptr, "%s\n", time_string);
     /* close the file */
@@ -290,7 +289,6 @@ int main(void)
     /* lock the mutex */
     pthread_mutex_lock(&lock);
 
-
     /* initialize the mutex */
     if (pthread_mutex_init(&lock, NULL) != 0) {
         /* OS error? */
@@ -300,7 +298,6 @@ int main(void)
         closedir(dptr);
         return -1;
     }
-
 
     /* First find the start room */
     if (dptr != NULL) {
@@ -322,7 +319,7 @@ int main(void)
                         sprintf(start_file, "%s", file_name);
                     }
                     /* close file at end of scopt */
-                fclose(fptr);
+                    fclose(fptr);
                 }
             }
         }
@@ -360,7 +357,7 @@ int main(void)
         /* THREADED TIME WRITING */
 
         /*if the last input was time read the time file */
-        if(strcmp("time",next_room) == 0) {
+        if (strcmp("time", next_room) == 0) {
             /*unlock the mutex*/
             pthread_mutex_unlock(&lock);
 
@@ -368,13 +365,13 @@ int main(void)
             pthread_join(time_thread, NULL);
 
             /* read time file */
-            fptr = fopen("currentTime.txt","r+");
+            fptr = fopen("currentTime.txt", "r+");
             if (fptr) {
                 fgets(line_buffer, sizeof(line_buffer), fptr);
                 printf("\n%s\n", line_buffer);
             }
-            else  {
-               fprintf(stderr, "ERROR READING TIME FILE :( \n");
+            else {
+                fprintf(stderr, "ERROR READING TIME FILE :( \n");
             }
 
             /* relock the mutex */
@@ -402,8 +399,6 @@ int main(void)
             /* resore last location */
             strcpy(next_room, last_room);
         }
-
-
 
         /* first check if we won */
         /* open file, remember to close at end of scope */
@@ -453,6 +448,5 @@ int main(void)
     /* destroy mutex */
     pthread_mutex_destroy(&lock);
 
-   return 0;
+    return 0;
 }
-
