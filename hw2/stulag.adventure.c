@@ -4,7 +4,7 @@
 * CS 344 Winter 2020
 *
 */
-
+#include <pthread.h>
 #include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -137,6 +137,21 @@ char* process_room(char* room_name)
 
         scanf("%s", ans); /* get input */
 
+        /* Handle time command by letting main thread know it occured */
+        /* main function is responsible for dealing with this
+         * this function does no tracking, only processing */
+        if (strcmp("time",ans) == 0) {
+            /* caller must free */
+            char* next = malloc(sizeof(char) * ENOUGH_SPACE);
+            strcpy(next, ans);
+            /* clean up */
+            free_array(lines, SMALL_ARRAY);
+            free_array(connections, SMALL_ARRAY);
+            /* exit with time command */
+            return next;
+        }
+
+        /* check if connection was calid */
         for (i = 0; i < conn_count; i++) {
             if (strcmp(ans, connections[i]) == 0) {
                 /* validation */
@@ -194,11 +209,56 @@ char* get_newest_dirname(void)
     return newest_dir_name;
 }
 
+
+/* * * * * * * * * *
+ * GLOBAL MUTEX    *
+ * * * * * * * * * */
+pthread_mutex_t lock;
+
+/* * * * * * * * * * * * * * * * * * * *
+* get_time()                            *
+* desc: Run in a seperate thread        *
+* it writes the current time to a file  *
+* * * * * * * * * * * * * * * * * * * * */
+void* write_time(void* arg)
+{
+    FILE* fptr;
+    /* buffer*/
+    char time_string[256];
+    /* time data */
+    time_t rawtime;
+    struct tm *time_info;
+
+    /* unlock the mutex */
+    pthread_mutex_lock(&lock);
+    /* get newest directory and open it */
+    fptr = fopen("currentTime.txt","w+");
+
+    time(&rawtime);
+    time_info = localtime(&rawtime);
+    strftime(time_string, 256, "%I:%M%P, %A, %B %d, %Y",time_info);
+    /* write the time */
+    fprintf(fptr, "%s\n", time_string);
+    /* close the file */
+    fclose(fptr);
+    /* unlock the mutex */
+    pthread_mutex_unlock(&lock);
+    return NULL;
+}
+
+/* * * * * * * * * * * * * * *
+* main()
+* Desc: entry point
+*
+* Responsible for:
+* 1. Mutex and thread management
+* 3. Finding the start room
+* 3. running the game loop
+* 4. Cleaning up
+* * * * * * * * * * * * * * * * */
 int main(void)
 {
-    char* dir_name = get_newest_dirname();
-
-    DIR* dptr = opendir(dir_name);
+    /* directory management */
     struct dirent* file_in_dir;
     FILE* fptr = NULL;
 
@@ -207,12 +267,40 @@ int main(void)
     char line_buffer[ENOUGH_SPACE];
     char start_file[ENOUGH_SPACE];
     char* next_room;
-    int i; // loop counter
+    char last_room[ENOUGH_SPACE];
+
+    /* loop counter */
+    int i;
+
+    /* pthread */
+    int result_code = 0;
+    pthread_t time_thread;
+
+    /* get newest directory and open it */
+    char* dir_name = get_newest_dirname();
+    DIR* dptr = opendir(dir_name);
 
     /* steps tracking */
     int steps = 0;
     char** step_strs = malloc(sizeof(char*) * MAX_ARRAY);
+
+    /* null the array */
     null_array(step_strs, MAX_ARRAY);
+
+    /* lock the mutex */
+    pthread_mutex_lock(&lock);
+
+
+    /* initialize the mutex */
+    if (pthread_mutex_init(&lock, NULL) != 0) {
+        /* OS error? */
+        fprintf(stderr, "\nBasic mutex init has failed!\n Please try again\n");
+        /* clean up */
+        free_array(step_strs, MAX_ARRAY);
+        closedir(dptr);
+        return -1;
+    }
+
 
     /* First find the start room */
     if (dptr != NULL) {
@@ -234,10 +322,23 @@ int main(void)
                         sprintf(start_file, "%s", file_name);
                     }
                     /* close file at end of scopt */
-                }
                 fclose(fptr);
+                }
             }
         }
+    }
+
+    /* launch the time thread */
+    result_code = pthread_create(&time_thread, NULL, &write_time, NULL);
+
+    /* initialize the mutex */
+    if (result_code != 0) {
+        /* OS error? */
+        fprintf(stderr, "\nInitial thread creation has failed!\n Please try again\n");
+        /* clean up */
+        free_array(step_strs, MAX_ARRAY);
+        closedir(dptr);
+        return -1;
     }
 
     /* process inital room */
@@ -247,11 +348,63 @@ int main(void)
     strcpy(step_strs[steps], next_room);
     steps++;
 
+    /* save last room */
+    strcpy(last_room, next_room);
+
     /* game loop */
     while (1) {
         /* formatting */
         puts("");
         puts("");
+
+        /* THREADED TIME WRITING */
+
+        /*if the last input was time read the time file */
+        if(strcmp("time",next_room) == 0) {
+            /*unlock the mutex*/
+            pthread_mutex_unlock(&lock);
+
+            /* join the thread */
+            pthread_join(time_thread, NULL);
+
+            /* read time file */
+            fptr = fopen("currentTime.txt","r+");
+            if (fptr) {
+                fgets(line_buffer, sizeof(line_buffer), fptr);
+                printf("\n%s\n", line_buffer);
+            }
+            else  {
+               fprintf(stderr, "ERROR READING TIME FILE :( \n");
+            }
+
+            /* relock the mutex */
+            pthread_mutex_lock(&lock);
+
+            /* relaunch the thread */
+            result_code = pthread_create(&time_thread, NULL, &write_time, NULL);
+
+            /* check for errors */
+            if (result_code != 0) {
+                /* OS error? */
+                fprintf(stderr, "\nA thread creation has failed!\n Please try again\n");
+                /* clean up */
+                fclose(fptr);
+                free_array(step_strs, MAX_ARRAY);
+                free(next_room);
+                closedir(dptr);
+                return -1;
+            }
+
+            /* close file */
+            fclose(fptr);
+            /* free memory*/
+            free(next_room);
+            /* resore last location */
+            strcpy(next_room, last_room);
+        }
+
+
+
         /* first check if we won */
         /* open file, remember to close at end of scope */
         sprintf(file_name, "%s/%s_room", dir_name, next_room);
@@ -277,7 +430,9 @@ int main(void)
 
         /* free last room string */
         free(next_room);
-        // process next room
+        /* save last room */
+        strcpy(last_room, next_room);
+        /* process next room */
         next_room = process_room(file_name);
 
         /* add string to steps tracker and inc steps count */
@@ -295,6 +450,8 @@ int main(void)
     free(dir_name);
     /* free steps array */
     free_array(step_strs, MAX_ARRAY);
+    /* destroy mutex */
+    pthread_mutex_destroy(&lock);
 
    return 0;
 }

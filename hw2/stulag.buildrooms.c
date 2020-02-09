@@ -270,13 +270,13 @@ void free_room_map(Room** room_map)
     room_map = NULL;
 }
 
-/* random_roooms
+/* pick_roooms
  * input: array of 10 strings
  * output: dynamically allocated array of 7 randomly selected strings
  *
  * Assumptions: Caller will free strings
  */
-char** random_rooms(char* rooms[MAX_ROOMS])
+char** pick_rooms(char* rooms[MAX_ROOMS])
 {
     /* loop counter */
     int max = MAX_CHOSEN; /* choose 7 out 10 rooms */
@@ -312,6 +312,7 @@ char** random_rooms(char* rooms[MAX_ROOMS])
             is_selected[index] = TRUE;
         }
     }
+    /* caller must free */
     return chosen;
 }
 
@@ -331,7 +332,7 @@ int main(void)
 
     /* chosen rooms */
     /* must free strings and array*/
-    char** chosen_strs = random_rooms(rooms);
+    char** chosen_strs = pick_rooms(rooms);
     Room** room_map = create_room_map(chosen_strs);
 
     /* iterator and-or indexer*/
