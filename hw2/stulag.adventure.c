@@ -113,7 +113,7 @@ char* process_room(char* room_name, bool last_prompt)
     sscanf(lines[0], "%s %s %s\n", tmp1, tmp2, rn);
     /* print current location
      * unless only last prompt requested */
-    if(!last_prompt) {
+    if (!last_prompt) {
         printf("CURRENT LOCATION: %s\n", rn);
     }
 
@@ -138,7 +138,7 @@ char* process_room(char* room_name, bool last_prompt)
         if (!last_prompt) {
             printf("POSSIBLE CONNECTIONS: ");
             for (i = 0; i < conn_count - 1; i++) {
-               printf("%s, ", connections[i]);
+                printf("%s, ", connections[i]);
             }
             /* last one is a special case no comma */
             printf("%s.\n", connections[i]);

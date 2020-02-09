@@ -24,6 +24,7 @@
 typedef enum bool { FALSE,
     TRUE } bool;
 
+/* room type enum to switch case on */
 typedef enum room_type {
     START_ROOM,
     END_ROOM,
@@ -219,6 +220,7 @@ char* room_type_to_string(Room r)
     char mid[] = "MID_ROOM";
     char end[] = "END_ROOM";
 
+    /* switch on the room tupe and return string */
     switch (t) {
     case START_ROOM:
         name = malloc(sizeof(char) * (strlen(start) + 1));
@@ -235,6 +237,7 @@ char* room_type_to_string(Room r)
         strcpy(name, end);
         break;
 
+    /* shouldn't be possible */
     default:
         name = NULL;
     }
@@ -342,7 +345,7 @@ int main(void)
 
     /* clear array */
     memset(room_dir, '\0', sizeof(char) * ENOUGH_SPACE);
-
+    /* append PID */
     sprintf(room_dir, "%s.%d", dir_prefix, pid);
 
     /* create rooms directory */
