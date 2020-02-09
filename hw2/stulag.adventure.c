@@ -477,6 +477,11 @@ int main(void)
         next_room = process_room(file_name, FALSE);
     }
 
+    /* clean up the thread */
+    /* would leak otherwise */
+    pthread_mutex_unlock(&lock);
+    pthread_join(time_thread, NULL);
+
     /* free end room string */
     free(next_room);
     /* close end room file */
