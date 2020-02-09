@@ -4,5 +4,6 @@ all:
 
 clean:
 	@rm -rf *.o *.rooms.*
-	@rm stulag.buildrooms
-	@rm stulag.adventure
+	@rm -f stulag.buildrooms
+	@rm -f currentTime.txt
+	@rm -f stulag.adventure

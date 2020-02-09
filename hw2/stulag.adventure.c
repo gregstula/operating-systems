@@ -4,8 +4,8 @@
 * CS 344 Winter 2020
 *
 */
-#include <pthread.h>
 #include <dirent.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -49,8 +49,8 @@ void free_array(char** arr, size_t size)
 {
     /* free steps tracking array */
     int i;
-    for (i=0; i < size; i++) {
-        if(arr[i] == NULL) {
+    for (i = 0; i < size; i++) {
+        if (arr[i] == NULL) {
             break;
         }
         free(arr[i]);
@@ -59,12 +59,15 @@ void free_array(char** arr, size_t size)
     free(arr);
 }
 
-
-/* Process room data and print according to
- * assignment specs
+/* process_room
+ * Process room data and print according to assignment specs
+ * Gets next room for the user and validates it
  * returns the next room to be processed
+ * input: room_name is the file path
+ *        last_prompt is a request for only last prompt
+ * output: what the user entered, if valid
  */
-char* process_room(char* room_name)
+char* process_room(char* room_name, bool last_prompt)
 {
     /* open the start room file */
     FILE* fptr = NULL;
@@ -105,12 +108,15 @@ char* process_room(char* room_name)
         fprintf(stderr, "File error with %s\n", room_name);
     }
 
-
     /* get name of room */
     /* it is first line */
     sscanf(lines[0], "%s %s %s\n", tmp1, tmp2, rn);
-    /* print current location */
-    printf("CURRENT LOCATION: %s\n", rn);
+    /* print current location
+     * unless only last prompt requested */
+    if(!last_prompt) {
+        printf("CURRENT LOCATION: %s\n", rn);
+    }
+
     /* Get connections */
     /* will be in between first and last lines */
     for (i = 1; i < line_count - 1; i++) {
@@ -126,22 +132,25 @@ char* process_room(char* room_name)
         conn_count++;
     }
 
-   while (1) {
-        /* print connections */
-        printf("POSSIBLE CONNECTIONS: ");
-        for (i = 0; i < conn_count - 1; i++) {
-            printf("%s, ", connections[i]);
+    while (1) {
+        /* print connections
+         * unless only last prompt was requested */
+        if (!last_prompt) {
+            printf("POSSIBLE CONNECTIONS: ");
+            for (i = 0; i < conn_count - 1; i++) {
+               printf("%s, ", connections[i]);
+            }
+            /* last one is a special case no comma */
+            printf("%s.\n", connections[i]);
         }
-        /* last one is a special case no comma */
-        printf("%s.\n", connections[i]);
-        printf("WHERE TO? > ");
+        printf("\nWHERE TO? > ");
 
         scanf("%s", ans); /* get input */
 
         /* Handle time command by letting main thread know it occured */
         /* main function is responsible for dealing with this
          * this function does no tracking, only processing */
-        if (strcmp("time",ans) == 0) {
+        if (strcmp("time", ans) == 0) {
             /* caller must free */
             char* next = malloc(sizeof(char) * ENOUGH_SPACE);
             strcpy(next, ans);
@@ -210,7 +219,6 @@ char* get_newest_dirname(void)
     return newest_dir_name;
 }
 
-
 /* * * * * * * * * *
  * GLOBAL MUTEX    *
  * * * * * * * * * */
@@ -228,16 +236,16 @@ void* write_time(void* arg)
     char time_string[256];
     /* time data */
     time_t rawtime;
-    struct tm *time_info;
+    struct tm* time_info;
 
     /* unlock the mutex */
     pthread_mutex_lock(&lock);
     /* get newest directory and open it */
-    fptr = fopen("currentTime.txt","w+");
+    fptr = fopen("currentTime.txt", "w+");
 
     time(&rawtime);
     time_info = localtime(&rawtime);
-    strftime(time_string, 256, "%I:%M%P, %A, %B %d, %Y",time_info);
+    strftime(time_string, 256, "%I:%M%P, %A, %B %d, %Y", time_info);
     /* write the time */
     fprintf(fptr, "%s\n", time_string);
     /* close the file */
@@ -294,7 +302,6 @@ int main(void)
     /* null the array */
     null_array(step_strs, MAX_ARRAY);
 
-
     /* initialize the mutex */
     if (pthread_mutex_init(&lock, NULL) != 0) {
         /* OS error? */
@@ -304,7 +311,6 @@ int main(void)
         closedir(dptr);
         return -1;
     }
-
 
     /* First find the start room */
     if (dptr != NULL) {
@@ -326,11 +332,12 @@ int main(void)
                         sprintf(start_file, "%s", file_name);
                     }
                     /* close file at end of scopt */
-                fclose(fptr);
+                    fclose(fptr);
                 }
             }
         }
-    } else {
+    }
+    else {
         fprintf(stderr, "\nERROR: No directories found.\nDid you forget run ./stulag.buildrooms?\n");
         free_array(step_strs, MAX_ARRAY);
         closedir(dptr);
@@ -344,15 +351,15 @@ int main(void)
         /*get first line */
         fgets(line_buffer, sizeof(line_buffer), fptr);
         fclose(fptr); /* close file */
-    } else {
+    }
+    else {
         fprintf(stderr, "\nERROR WITH FILE %s", start_file);
         /* clean up */
         free_array(step_strs, MAX_ARRAY);
         closedir(dptr);
         return -1;
-     }
+    }
     sscanf(line_buffer, "%s %s %s\n", tmp1, tmp2, start_room); /* get the name */
-
 
     /* lock the mutex */
     pthread_mutex_lock(&lock);
@@ -369,7 +376,7 @@ int main(void)
     }
 
     /* process inital room */
-    next_room = process_room(start_file);
+    next_room = process_room(start_file, FALSE);
     /* save the last room pocessed*/
     strcpy(last_room, start_room);
 
@@ -377,9 +384,9 @@ int main(void)
     while (1) {
         /* formatting */
 
-       /* THREADED TIME WRITING */
+        /* THREADED TIME WRITING */
         /*if the last input was time read the time file */
-        if(strcmp("time",next_room) == 0) {
+        if (strcmp("time", next_room) == 0) {
             /*unlock the mutex*/
             pthread_mutex_unlock(&lock);
 
@@ -390,14 +397,14 @@ int main(void)
             pthread_mutex_lock(&lock);
 
             /* read time file */
-            fptr = fopen("currentTime.txt","r+");
+            fptr = fopen("currentTime.txt", "r+");
             if (fptr) {
                 fgets(line_buffer, sizeof(line_buffer), fptr);
                 /* print rhe time */
                 printf("%s", line_buffer);
             }
-            else  {
-               fprintf(stderr, "ERROR READING TIME FILE :( \n");
+            else {
+                fprintf(stderr, "ERROR READING TIME FILE :( \n");
             }
 
             /* relaunch the thread */
@@ -421,10 +428,10 @@ int main(void)
             strcpy(next_room, last_room);
             /* get the next room without incrementing the steps logic */
             sprintf(file_name, "%s/%s_room", dir_name, next_room);
-            next_room = process_room(file_name);
+            /* spec requires inly last prompt to be printed in this case */
+            next_room = process_room(file_name, TRUE);
             continue;
         }
-
 
         /* first check if we won */
         /* get file name from room name */
@@ -438,9 +445,15 @@ int main(void)
         }
         /* compare last line to see if it is the END room */
         if (strcmp("ROOM TYPE: END_ROOM\n", line_buffer) == 0) {
-            /* break out of loop if we won*/
+
+            /* add string to steps tracker and inc steps count */
+            step_strs[steps] = malloc(sizeof(char) * 100);
+            strcpy(step_strs[steps], next_room);
+            steps++;
+
+            /* break out of loop since we won*/
             printf("\nYOU HAVE FOUND THE END ROOM. CONGRATULATIONS!\n");
-            printf("YOU TOOK %d STEPS. YOUR PATCH TO VICTORY WAS:\n", steps);
+            printf("YOU TOOK %d STEPS. YOUR PATH TO VICTORY WAS:\n", steps);
             for (i = 0; i < steps; i++) {
                 puts(step_strs[i]);
             }
@@ -458,9 +471,8 @@ int main(void)
         strcpy(last_room, next_room);
         /* free last room string */
         free(next_room);
-        /* process next room */
-        next_room = process_room(file_name);
-
+        /* get and process next room with all prompts*/
+        next_room = process_room(file_name, FALSE);
     }
 
     /* free end room string */
@@ -476,6 +488,5 @@ int main(void)
     /* destroy mutex */
     pthread_mutex_destroy(&lock);
 
-   return 0;
+    return 0;
 }
-
