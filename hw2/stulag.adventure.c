@@ -143,7 +143,8 @@ char* process_room(char* room_name, bool last_prompt)
             /* last one is a special case no comma */
             printf("%s.\n", connections[i]);
         }
-        printf("\nWHERE TO? > ");
+        /* the last prompt aka the input prompt */
+        printf("WHERE TO? > ");
 
         scanf("%s", ans); /* get input */
 
@@ -383,6 +384,7 @@ int main(void)
     /* game loop */
     while (1) {
         /* formatting */
+        printf("\n");
 
         /* THREADED TIME WRITING */
         /*if the last input was time read the time file */
@@ -401,7 +403,7 @@ int main(void)
             if (fptr) {
                 fgets(line_buffer, sizeof(line_buffer), fptr);
                 /* print rhe time */
-                printf("%s", line_buffer);
+                printf("%s\n", line_buffer);
             }
             else {
                 fprintf(stderr, "ERROR READING TIME FILE :( \n");
@@ -452,7 +454,7 @@ int main(void)
             steps++;
 
             /* break out of loop since we won*/
-            printf("\nYOU HAVE FOUND THE END ROOM. CONGRATULATIONS!\n");
+            printf("YOU HAVE FOUND THE END ROOM. CONGRATULATIONS!\n");
             printf("YOU TOOK %d STEPS. YOUR PATH TO VICTORY WAS:\n", steps);
             for (i = 0; i < steps; i++) {
                 puts(step_strs[i]);
