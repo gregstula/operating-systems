@@ -1,5 +1,5 @@
 all:
-	gcc -o stulag.buildrooms stulag.buildrooms.c -lpthread
+	gcc -o stulag.buildrooms stulag.buildrooms.c
 	gcc -o stulag.adventure stulag.adventure.c -lpthread
 
 clean:
