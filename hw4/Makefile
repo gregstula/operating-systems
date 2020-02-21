@@ -1,6 +1,5 @@
 all:
-	gcc -o stulag.buildrooms stulag.buildrooms.c
-	gcc -o stulag.adventure stulag.adventure.c -lpthread
+	gcc -Wall -std=c99 main.c -o smallsh
 
 clean:
 	@rm -rf *.o *.rooms.*
