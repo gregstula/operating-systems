@@ -30,8 +30,8 @@ smsh_state smsh_init_state(void)
     s.is_running = true;
     // point to null
     s.line_buffer = NULL;
-    // allocate array that can fit MAX args
-    s.args = calloc(sizeof(char*), MAX_ARGS);
+    // point to null
+    s.args = NULL;
     // set array size to 0
     s.args_size = 0;
 
@@ -87,42 +87,71 @@ void smsh_get_input(smsh_state* shell)
     shell->line_buffer = tmp_buffer;
 }
 
+// find next
+// utility function that finds the distance of the next
+// char from a string iterator
+// largely inspired by how I *wanted* strcspn to work
+size_t smsh_find_next(char* itr, char c) {
+
+    int distance = 0;
+    // count the number of increments
+    // it takes to find the char and return it
+    while (*itr != '\0') {
+        if (*itr == c) {
+            return distance;
+        }
+        distance++;
+        itr++;
+    }
+    // return the distance to null char othereise
+    return distance;
+}
+
+
+
 
 void smsh_parse_input(smsh_state* shell)
 {
 
     char* line = shell->line_buffer;
-    size_t len = strlen(line);
-    char* end = line + len;
+    size_t len = strlen(line) + 1;
 
-    char* arg_start = line;
-    int arg_count = 0;
+    // allocate array for arg strings
+    char** arg_arr = calloc(sizeof(char*), MAX_ARGS);
 
     // iterate through the line and search for a space
-    for (char* pos = line; pos != end; pos++ ) {
-        // when we hit a space
-        // add arg to the arg array
-        if (*pos == ' ') {
-            // get length of arg
-            size_t arg_len = (len - strlen(pos)) + 1;
+    size_t arg_start = 0;
+    int arg_count = 0;
+    // esentially we are splitting by a delimiter of space
+    // and getting an array of strings to add to to the shell state struct
+    while(arg_start < len) {
+        // get distance of next space from the current position
+        // this is how we delimit args
+        size_t next_space = smsh_find_next(line + arg_start, ' ');
 
-            // copy the argument to an area in memory
-            char* tmp = calloc(sizeof(char), arg_len);
-            for (size_t i = 0;  i < arg_len - 1; i++) {
-                char* c = arg_start + i;
-                tmp[i] = *c;
-            }
-            // assign the arg to it's index in the array
-            shell->args[arg_count] = tmp;
-            // new arg starts after the current space
-            arg_start = pos + 1;
-            arg_count++;
+        // create buffer in memory for arg
+        // calloc gives us null char for free
+        char* buffer = calloc(sizeof(char), next_space + 1);
+        for (size_t i = 0; i < next_space; i++) {
+            // copy arg string to buffer
+            // off set the begining of the line with the start of the next arg
+            // then add the distance from the next space to it
+            buffer[i] = *((line + arg_start) + i);
         }
+
+        // set index to arg buffer memory
+        arg_arr[arg_count] = buffer;
+        // increment arg count
+        arg_count++;
+
+        // increment arg start to one position after the space we found
+        arg_start += next_space + 1;
     }
+    // set shell pointer as owner of array
+    shell->args = arg_arr;
     // save number of args
     shell->args_size = arg_count;
 }
-
 
 // main command processing logic
 void smsh_process_args(smsh_state* shell)

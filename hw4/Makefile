@@ -1,5 +1,5 @@
 all:
-	gcc -Wall -std=c99 main.c -o smallsh
+	gcc -Wall -g -std=c99 main.c -o smallsh
 
 clean:
 	@rm -rf *.o *.rooms.*
