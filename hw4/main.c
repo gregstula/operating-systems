@@ -39,14 +39,19 @@ smsh_state smsh_init_state(void)
     return s;
 }
 
-// deinitializes and frees members of a shell state struct
+// deinitializes and frees dynamically allocated members in the state struct
 void smsh_destroy_state(smsh_state* state)
 {
-    // If not NULL free the buffers
-    if (state->line_buffer != NULL) {
-        free(state->line_buffer);
-        state->line_buffer = NULL;
+    free(state->line_buffer);
+
+    // Free args strings
+    for (size_t i = 0; i < state->args_size; i++) {
+        free(state->args[i]);
+        state->args[i] = NULL;
     }
+    // free args array
+    free(state->args);
+    state->args = NULL;
 }
 
 
@@ -154,18 +159,25 @@ void smsh_parse_input(smsh_state* shell)
 }
 
 // main command processing logic
-void smsh_process_args(smsh_state* shell)
+void smsh_process_command(smsh_state* shell)
 {
-    char* input = shell->line_buffer;
+    // first arg is the command
+    char* command = shell->args[0];
 
     // exit command
-    if (strcmp(input, "exit") == 0) {
+    if (strcmp(command, "exit") == 0) {
         shell->is_running = false;
         return;
     }
     // cd command
-    else if (strcmp(input, "cd") == 0) {
-        //TODO
+    else if (strcmp(command, "cd") == 0) {
+        if (shell->args_size == 1) {
+            // cd by itself takes you home
+            chdir(getenv("HOME"));
+        }
+        else {
+            chdir(shell->args[1]);
+        }
     } else {
         // print args
         for(int i = 0; i < shell->args_size; i++) {
@@ -179,14 +191,12 @@ void smsh_process_args(smsh_state* shell)
 int main(void)
 {
     smsh_state shell = smsh_init_state();
-
     while (shell.is_running) {
         smsh_get_input(&shell);
         smsh_parse_input(&shell);
-        smsh_process_args(&shell);
+        smsh_process_command(&shell);
+        smsh_destroy_state(&shell);
     }
-
-    smsh_destroy_state(&shell);
     return 0;
 }
 
