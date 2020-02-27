@@ -158,11 +158,42 @@ void smsh_get_input(smsh_state* shell)
     shell->line_buffer = tmp_buffer;
 }
 
-// function find_next
+// function: find_and_replace
+// utility function to find a substring and replace with something else
+char* util_find_and_replace(char* str, char* to_find, char* replace)
+{
+    char buffer[ENOUGH_SPACE];
+    // get a pointer to the substring
+    char* pos = strstr(str, to_find);
+
+    // not ffound
+    if (!pos) return str;
+    // get size of everything before it
+    size_t before = pos - str;
+    char* after = pos + strlen(to_find);
+
+    // copy everything UP TO the found sub string
+    strncpy(buffer, str, before);
+    // add null char since strncpy used substring
+    char* end_copy = buffer + before;
+    *end_copy = '\0';
+
+    // print the replacement and everything that was after the substring
+    // to the part of the buffer that was not copied to
+    sprintf(end_copy, "%s%s", replace, after);
+    // allocate return string
+    char* new_str = calloc(sizeof(char), strlen(buffer) + 1);
+    // copy to the return string
+    strcpy(new_str, buffer);
+    return new_str;
+
+}
+
+// function: distance_to_char
 // utility function that finds the distance of the next
 // char from a string iterator
 // largely inspired by how I *wanted* strcspn to work
-size_t smsh_find_next(char* itr, char c)
+size_t util_distance_to_char(char* itr, char c)
 {
 
     int distance = 0;
@@ -201,7 +232,7 @@ void smsh_parse_input(smsh_state* shell)
     while (arg_start < len) {
         // get distance of next space from the current position
         // this is how we delimit args
-        size_t next_space = smsh_find_next(line + arg_start, ' ');
+        size_t next_space = util_distance_to_char(line + arg_start, ' ');
 
         // create buffer in memory for arg
         // calloc gives us null char for free
@@ -221,20 +252,35 @@ void smsh_parse_input(smsh_state* shell)
         // increment arg start to one position after the space we found
         arg_start += next_space + 1;
     }
+
     // set shell pointer as owner of array
     shell->args = arg_arr;
     // save number of args
     shell->args_size = arg_count;
 
+    // converts shell pid to string
+    char pid_str[10];
+    sprintf(pid_str, "%d", shell->self);
+
+    // replace all instances of $$ with the shell pid
+    for (size_t i = 0; i < arg_count; i++) {
+        // test to see if $$ is even in there
+        if (strstr(shell->args[i], "$$")) {
+            // get replacement string from our util function
+            char* replacement = util_find_and_replace(shell->args[i], "$$", pid_str);
+            // free the current string
+            free(shell->args[i]);
+            // point to the replacement
+            shell->args[i] = replacement;
+        }
+    }
+
+
     int truncate_to = 0;
     // parse built in symbols
     for (size_t i = 0; i < arg_count; i++) {
-        // replace any instance of $$ with the shell's pid
-        if (strcmp(shell->args[i],"$$") == 0) {
-            shell->args[i] = realloc(shell->args[i], sizeof(char) * 7);
-            sprintf(shell->args[i], "%d", shell->self);
-        }
 
+        // ignore everything if it's a comment
         if (strcmp(shell->args[i],"#") == 0) {
             shell->ignore_all = true;
         }
@@ -390,14 +436,15 @@ void smsh_check_background(smsh_state* state)
     int procs = *state->proc_count;
     int status;
     for (int i = 0; i < procs; i++) {
-        if (waitpid(state->background_procs[i], &status, WNOHANG) > 0) {
+        pid_t child = state->background_procs[i];
+        if (waitpid(child, &status, WNOHANG) > 0) {
             if (WIFEXITED(status)) {
-                fprintf(stdout, "exit value %d\n", WEXITSTATUS(status));
+                fprintf(stdout, "child %d exited with value %d\n", child, WEXITSTATUS(status));
                 fflush(stdout);
             }
             // in the case it was termninated by a signal
             else {
-                fprintf(stdout,"terminated by signal %d\n", WTERMSIG(status));
+                fprintf(stdout,"child %d terminated by signal %d\n", child, WTERMSIG(status));
                 fflush(stdout);
             }
         }
@@ -419,7 +466,7 @@ void smsh_process_command(smsh_state* shell)
     char* command = shell->args[0];
     // exit command
     if (strcmp(command, "exit") == 0) {
-        fprintf(stdout, "Exiting...\n");
+        fprintf(stdout, "exiting...\n");
         fflush(stdout);
         shell->is_running = false;
         return;
@@ -507,7 +554,6 @@ int main(void)
     // alocate status buffer
     shell.status_buffer = calloc(sizeof(char), ENOUGH_SPACE);
     sprintf(shell.status_buffer, "exit value 0\n");
-
     // command loop
     while (shell.is_running) {
         smsh_get_input(&shell);
