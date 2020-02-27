@@ -1,3 +1,8 @@
+/* Gregory D Stula
+ * 2020-02-26
+ * CS 344 Winter 2020
+ * Program 3
+ */
 #include <signal.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -6,6 +11,7 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <fcntl.h>
 #include <unistd.h>
 
 #define MAX_LINE 2048
@@ -13,10 +19,10 @@
 #define ENOUGH_SPACE 256
 // global state needed for signal handler functions
 // true until SIGSTP signal is received
-bool global_allow_background = true;
+volatile bool global_allow_background = true;
 
 // All memory will be owned by this struct for easy of use
-// smsh_ is a smallsh prefix acting as our namespace
+// NOTE: smsh_ is a smallsh prefix acting as our namespace
 typedef struct smsh_state {
     // true if shell is running
     bool is_running;
@@ -26,6 +32,16 @@ typedef struct smsh_state {
     char* line_buffer;
     // status string
     char* status_buffer;
+
+    // input redirection
+    bool should_redirect_input;
+    // non-owning
+    char* input_file;
+
+    // output redirection
+    bool should_redirect_output;
+    // non-owning
+    char* output_file;
 
     // array of strings for args
     char** args;
@@ -39,6 +55,7 @@ typedef struct smsh_state {
 
 } smsh_state;
 
+// function: init_state
 // initalizes a shell state struct
 // requires sigaction information for sigint
 // this in order to change it's behavior across processes
@@ -57,6 +74,12 @@ smsh_state smsh_init_state()
     // set array size to 0
     s.args_size = 0;
 
+    s.should_redirect_input = false;
+    s.input_file = NULL;
+
+    s.should_redirect_output = false;
+    s.output_file = NULL;
+
     // point background array to null
     s.background_procs = NULL;
     s.proc_count = 0;
@@ -68,10 +91,23 @@ smsh_state smsh_init_state()
     return s;
 }
 
+// function: clean_state
 // deinitializes and frees dynamically allocated members in the state struct
-void smsh_destroy_state(smsh_state* state)
+void smsh_clean_state(smsh_state* state)
 {
     free(state->line_buffer);
+
+    // if we transfered ownership, free
+    if (state->input_file) {
+        free(state->input_file);
+        state->input_file = NULL;
+    }
+
+    // if we transfered ownership, free
+    if (state->output_file) {
+        free(state->output_file);
+        state->output_file = NULL;
+    }
 
     // Free args strings
     for (size_t i = 0; i < state->args_size; i++) {
@@ -81,10 +117,16 @@ void smsh_destroy_state(smsh_state* state)
     // free args array
     free(state->args);
     state->args = NULL;
+
+
+    // set bools to default
+    state->send_to_background = false;
+    state->should_redirect_input = false;
+    state->should_redirect_output = false;
 }
 
 
-// smsh_get_input
+// function: get_input
 // prints a prompt to the user to get a command line
 // it removes the first newline character
 // and adds the command line information to the shell state
@@ -113,7 +155,7 @@ void smsh_get_input(smsh_state* shell)
     shell->line_buffer = tmp_buffer;
 }
 
-// find next
+// function find_next
 // utility function that finds the distance of the next
 // char from a string iterator
 // largely inspired by how I *wanted* strcspn to work
@@ -135,6 +177,10 @@ size_t smsh_find_next(char* itr, char c)
 }
 
 
+// function: parse_input
+// splits the command line string by spaces
+// parses the resulting array to prepare for proper handling
+// of built in functionality such as io redirection and PID status
 void smsh_parse_input(smsh_state* shell)
 {
 
@@ -177,11 +223,47 @@ void smsh_parse_input(smsh_state* shell)
     // save number of args
     shell->args_size = arg_count;
 
-    // replace any instance of $$ with the shell's pid
+    // parse built in symbols
     for (size_t i = 0; i < arg_count; i++) {
+        // replace any instance of $$ with the shell's pid
         if (strcmp(shell->args[i],"$$") == 0) {
             shell->args[i] = realloc(shell->args[i], sizeof(char) * 7);
             sprintf(shell->args[i], "%d", shell->self);
+        }
+
+        // handle input redirection
+        if (strcmp(shell->args[i],"<") == 0) {
+            // bounds check
+            if ((i + 1) < arg_count) {
+                shell->should_redirect_input = true;
+                // set to pointer
+                // transfer ownership of file name
+                shell->input_file = shell->args[i + 1];
+                shell->args[i+1] = NULL;
+                shell->args[i+1] = calloc(sizeof(char), 1);
+
+                // truncate input operator and file name argument
+                shell->args[i] = realloc(shell->args[i], sizeof(char) * 2);
+                shell->args[i][0] = 0;
+            }
+        }
+
+        // handle output redirection
+        if (strcmp(shell->args[i],">") == 0) {
+            // bounds check
+            if ((i + 1) < arg_count) {
+                shell->should_redirect_output = true;
+
+                // set to pointer
+                shell->output_file = shell->args[i + 1];
+                // transfer ownership of file name
+                shell->args[i+1] = NULL;
+                shell->args[i+1] = calloc(sizeof(char), 1);
+
+                // truncate input operator and file name argument
+                shell->args[i] = realloc(shell->args[i], sizeof(char));
+                shell->args[i][0] = 0;
+            }
         }
     }
 
@@ -192,9 +274,7 @@ void smsh_parse_input(smsh_state* shell)
         shell->args[endex] = NULL;
         shell->args_size--;
         shell->send_to_background = true;
-        return;
     }
-    shell->send_to_background = false;
 }
 
 void execute_external_command(smsh_state* shell, bool background)
@@ -215,8 +295,6 @@ void execute_external_command(smsh_state* shell, bool background)
         sigfillset(&sigint_child.sa_mask);
         sigint_child.sa_flags = 0;
         sigaction(SIGINT, &sigint_child, NULL);
-
-
         if (background) {
             // if no redirect given for stdin
             freopen("/dev/null", "r", stdin);
@@ -225,6 +303,39 @@ void execute_external_command(smsh_state* shell, bool background)
             freopen("/dev/null", "w", stdout);
         }
 
+        // input redirection
+        if (shell->should_redirect_input) {
+            int input = open(shell->input_file, O_RDONLY);
+            if (input == -1) {
+                perror("cannot open file for input\n");
+                exit(1);
+            }
+            int dup = dup2(input, STDIN_FILENO);
+            if (dup == -1) {
+                perror("input redirect failed\n");
+                exit(1);
+            }
+            // close
+            fcntl(input, F_SETFD, FD_CLOEXEC);
+        }
+
+        // output redirection
+        if (shell->should_redirect_output) {
+            int output = open(shell->output_file, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+            if (output == -1) {
+                perror("cannot open file for output\n");
+                exit(1);
+            }
+            int dup = dup2(output, STDOUT_FILENO);
+            if (dup == -1) {
+                perror("output redirect failed\n");
+                exit(1);
+            }
+            // close
+            fcntl(output, F_SETFD, FD_CLOEXEC);
+        }
+
+        // execute
         execvp(command, shell->args);
 
         // these lines execute if it did not go well
@@ -239,7 +350,7 @@ void execute_external_command(smsh_state* shell, bool background)
             shell->proc_count++;
             // wait in background mode
             waitpid(spawn_pid, &child_status, WNOHANG);
-            printf("background pid is %d", spawn_pid);
+            printf("background pid is %d\n", spawn_pid);
             fflush(stdout);
             return;
         }
@@ -360,7 +471,7 @@ int main(void)
         smsh_get_input(&shell);
         smsh_parse_input(&shell);
         smsh_process_command(&shell);
-        smsh_destroy_state(&shell);
+        smsh_clean_state(&shell);
     }
 
     // free array of pid_ts
