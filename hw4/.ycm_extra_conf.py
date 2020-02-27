@@ -37,6 +37,7 @@ flags = [
     '-x',
     'c',
     '-Wall',
+    '-D_POSIX_C_SOURCE',
     '-std=c99'
 ]
 
