@@ -1,12 +1,12 @@
+#include <signal.h>
+#include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdint.h>
-#include <stdbool.h>
 #include <string.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
-#include <signal.h>
 
 #define MAX_LINE 2048
 #define MAX_ARGS 512
@@ -20,6 +20,8 @@ bool global_allow_background = true;
 typedef struct smsh_state {
     // true if shell is running
     bool is_running;
+    // true if shell is in background
+    bool send_to_background;
     // pointer to a line buffer
     char* line_buffer;
     // status string
@@ -45,6 +47,7 @@ smsh_state smsh_init_state()
     smsh_state s;
     // run on init
     s.is_running = true;
+    s.send_to_background = false;
 
     // point buffers to null
     s.line_buffer = NULL;
@@ -89,7 +92,7 @@ void smsh_get_input(smsh_state* shell)
 {
     // print the prompt
     const char* prompt = ": ";
-    printf("%s",prompt);
+    printf("%s", prompt);
     fflush(stdout);
 
     // allocate the shell's line buffer
@@ -114,7 +117,8 @@ void smsh_get_input(smsh_state* shell)
 // utility function that finds the distance of the next
 // char from a string iterator
 // largely inspired by how I *wanted* strcspn to work
-size_t smsh_find_next(char* itr, char c) {
+size_t smsh_find_next(char* itr, char c)
+{
 
     int distance = 0;
     // count the number of increments
@@ -131,8 +135,6 @@ size_t smsh_find_next(char* itr, char c) {
 }
 
 
-
-
 void smsh_parse_input(smsh_state* shell)
 {
 
@@ -147,7 +149,7 @@ void smsh_parse_input(smsh_state* shell)
     int arg_count = 0;
     // esentially we are splitting by a delimiter of space
     // and getting an array of strings to add to to the shell state struct
-    while(arg_start < len) {
+    while (arg_start < len) {
         // get distance of next space from the current position
         // this is how we delimit args
         size_t next_space = smsh_find_next(line + arg_start, ' ');
@@ -174,6 +176,25 @@ void smsh_parse_input(smsh_state* shell)
     shell->args = arg_arr;
     // save number of args
     shell->args_size = arg_count;
+
+    // replace any instance of $$ with the shell's pid
+    for (size_t i = 0; i < arg_count; i++) {
+        if (strcmp(shell->args[i],"$$") == 0) {
+            shell->args[i] = realloc(shell->args[i], sizeof(char) * 7);
+            sprintf(shell->args[i], "%d", shell->self);
+        }
+    }
+
+    // if the last char is an ampersand, remove it and set background flag
+    int endex = arg_count - 1;
+    if (strcmp(shell->args[endex], "&") == 0) {
+        free(shell->args[endex]);
+        shell->args[endex] = NULL;
+        shell->args_size--;
+        shell->send_to_background = true;
+        return;
+    }
+    shell->send_to_background = false;
 }
 
 void execute_external_command(smsh_state* shell, bool background)
@@ -189,31 +210,30 @@ void execute_external_command(smsh_state* shell, bool background)
     }
 
     if (spawn_pid == 0) { // child process
-            // turn on ^C
-            struct sigaction sigint_child = {0};
-            sigfillset(&sigint_child.sa_mask);
-            sigint_child.sa_flags = 0;
-            sigaction(SIGINT, &sigint_child, NULL);
+        // turn on ^C
+        struct sigaction sigint_child = { 0 };
+        sigfillset(&sigint_child.sa_mask);
+        sigint_child.sa_flags = 0;
+        sigaction(SIGINT, &sigint_child, NULL);
 
 
-            if (background) {
-                // if no redirect given for stdin
-                freopen("/dev/null","r",stdin);
+        if (background) {
+            // if no redirect given for stdin
+            freopen("/dev/null", "r", stdin);
 
-                // if no redirect given for stdout
-                freopen("/dev/null","w",stdout);
-            }
+            // if no redirect given for stdout
+            freopen("/dev/null", "w", stdout);
+        }
 
-            execvp(command, shell->args);
+        execvp(command, shell->args);
 
-            // these lines execute if it did not go well
-            fprintf(stderr,"%s: no such file or directory", command);
-            fflush(stderr);
-            exit(1);
-
+        // these lines execute if it did not go well
+        fprintf(stderr, "%s: no such file or directory", command);
+        fflush(stderr);
+        exit(1);
     }
     else { // parent process
-        if (background && global_allow_background) {
+        if (shell->send_to_background && global_allow_background) {
             // save background process in array
             shell->background_procs[shell->proc_count] = spawn_pid;
             shell->proc_count++;
@@ -226,11 +246,11 @@ void execute_external_command(smsh_state* shell, bool background)
 
         // wait for the process
         waitpid(spawn_pid, &child_status, 0);
-        if(WIFEXITED(child_status)) {
+        if (WIFEXITED(child_status)) {
             sprintf(shell->status_buffer, "exit value %d\n", WEXITSTATUS(child_status));
         }
         // in the case it was termninated by a signal
-        else  {
+        else {
             sprintf(shell->status_buffer, "terminated by signal %d\n", WTERMSIG(child_status));
         }
     }
@@ -246,9 +266,9 @@ void smsh_process_command(smsh_state* shell)
     int result = 0;
     // first arg is the command
     char* command = shell->args[0];
-        // exit command
+    // exit command
     if (strcmp(command, "exit") == 0) {
-        fprintf(stdout,"Exiting...\n");
+        fprintf(stdout, "Exiting...\n");
         fflush(stdout);
         shell->is_running = false;
         return;
@@ -266,14 +286,13 @@ void smsh_process_command(smsh_state* shell)
     }
     // status command
     else if (strcmp(command, "status") == 0) {
-        fprintf(stdout,"%s", shell->status_buffer);
-
+        fprintf(stdout, "%s", shell->status_buffer);
     }
     // handle non built in command
     // the function sets the status buffer per case
     else {
         // check for background command
-        if (strcmp(shell->args[shell->args_size - 1],"&") == 0 && global_allow_background) {
+        if (shell->send_to_background && global_allow_background) {
             execute_external_command(shell, true);
             return;
         }
@@ -291,31 +310,31 @@ void smsh_process_command(smsh_state* shell)
 // and prints to stdout with syscall
 void catch_SIGTSTP(int signo)
 {
-	if (global_allow_background) {
+    if (global_allow_background) {
         char* message = "Entering foreground-only mode (& is now ignored)\n";
         // can't use printf during signal handlers
         write(STDOUT_FILENO, message, 49); // can't use strlen either
         global_allow_background = false;
-	}
-	else {
-		char* message = "Exiting foreground-only mode\n";
+    }
+    else {
+        char* message = "Exiting foreground-only mode\n";
         write(STDOUT_FILENO, message, 29);
         global_allow_background = true;
-	}
+    }
 }
 
 // entry point
 int main(void)
 {
     // signal handler for SIGINT
-    struct sigaction sigint_action = {0};
+    struct sigaction sigint_action = { 0 };
     sigint_action.sa_handler = SIG_IGN; // ignore interupt
     sigfillset(&sigint_action.sa_mask);
     sigint_action.sa_flags = 0;
     sigaction(SIGINT, &sigint_action, NULL);
 
     // signal handler for SIGSTP
-    struct sigaction sigtstp_action = {0};
+    struct sigaction sigtstp_action = { 0 };
     // set to handler function
     sigtstp_action.sa_handler = catch_SIGTSTP;
     sigfillset(&sigtstp_action.sa_mask);
@@ -349,4 +368,3 @@ int main(void)
     free(shell.status_buffer);
     return 0;
 }
-
