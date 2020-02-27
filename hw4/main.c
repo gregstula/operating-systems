@@ -339,7 +339,7 @@ int main(void)
     sigtstp_action.sa_handler = catch_SIGTSTP;
     sigfillset(&sigtstp_action.sa_mask);
     sigtstp_action.sa_flags = 0;
-    sigaction(SIGINT, &sigtstp_action, NULL);
+    sigaction(SIGTSTP, &sigtstp_action, NULL);
 
 
     // stores command line data
