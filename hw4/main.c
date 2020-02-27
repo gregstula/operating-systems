@@ -28,6 +28,7 @@ typedef struct smsh_state {
     bool is_running;
     // true if shell is in background
     bool send_to_background;
+    bool ignore_all;
     // pointer to a line buffer
     char* line_buffer;
     // status string
@@ -48,7 +49,7 @@ typedef struct smsh_state {
     size_t args_size;
 
     pid_t* background_procs;
-    int proc_count;
+    int* proc_count;
 
     // pid of self
     pid_t self;
@@ -65,6 +66,7 @@ smsh_state smsh_init_state()
     // run on init
     s.is_running = true;
     s.send_to_background = false;
+    s.ignore_all = false;
 
     // point buffers to null
     s.line_buffer = NULL;
@@ -121,6 +123,7 @@ void smsh_clean_state(smsh_state* state)
 
     // set bools to default
     state->send_to_background = false;
+    state->ignore_all = false;
     state->should_redirect_input = false;
     state->should_redirect_output = false;
 }
@@ -223,6 +226,7 @@ void smsh_parse_input(smsh_state* shell)
     // save number of args
     shell->args_size = arg_count;
 
+    int truncate_to = 0;
     // parse built in symbols
     for (size_t i = 0; i < arg_count; i++) {
         // replace any instance of $$ with the shell's pid
@@ -231,8 +235,16 @@ void smsh_parse_input(smsh_state* shell)
             sprintf(shell->args[i], "%d", shell->self);
         }
 
+        if (strcmp(shell->args[i],"#") == 0) {
+            shell->ignore_all = true;
+        }
+
         // handle input redirection
         if (strcmp(shell->args[i],"<") == 0) {
+            // words followed by < or < must be after all args
+            if (!truncate_to) {
+                truncate_to = i;
+            }
             // bounds check
             if ((i + 1) < arg_count) {
                 shell->should_redirect_input = true;
@@ -241,15 +253,15 @@ void smsh_parse_input(smsh_state* shell)
                 shell->input_file = shell->args[i + 1];
                 shell->args[i+1] = NULL;
                 shell->args[i+1] = calloc(sizeof(char), 1);
-
-                // truncate input operator and file name argument
-                shell->args[i] = realloc(shell->args[i], sizeof(char) * 2);
-                shell->args[i][0] = 0;
             }
         }
-
         // handle output redirection
-        if (strcmp(shell->args[i],">") == 0) {
+        else if (strcmp(shell->args[i],">") == 0) {
+            // words followed by < or < must be after all args
+            if (!truncate_to) {
+                truncate_to = i;
+            }
+
             // bounds check
             if ((i + 1) < arg_count) {
                 shell->should_redirect_output = true;
@@ -258,11 +270,8 @@ void smsh_parse_input(smsh_state* shell)
                 shell->output_file = shell->args[i + 1];
                 // transfer ownership of file name
                 shell->args[i+1] = NULL;
+                // replace with temp mem to not deref null next i
                 shell->args[i+1] = calloc(sizeof(char), 1);
-
-                // truncate input operator and file name argument
-                shell->args[i] = realloc(shell->args[i], sizeof(char));
-                shell->args[i][0] = 0;
             }
         }
     }
@@ -274,6 +283,15 @@ void smsh_parse_input(smsh_state* shell)
         shell->args[endex] = NULL;
         shell->args_size--;
         shell->send_to_background = true;
+    }
+
+    // truncate
+    if (truncate_to) {
+        for(size_t i = truncate_to; i < arg_count; i++) {
+            free(shell->args[i]);
+            shell->args[i] = NULL;
+        }
+        shell->args_size = truncate_to;
     }
 }
 
@@ -346,8 +364,8 @@ void execute_external_command(smsh_state* shell, bool background)
     else { // parent process
         if (shell->send_to_background && global_allow_background) {
             // save background process in array
-            shell->background_procs[shell->proc_count] = spawn_pid;
-            shell->proc_count++;
+            shell->background_procs[*shell->proc_count] = spawn_pid;
+            *shell->proc_count += 1;
             // wait in background mode
             waitpid(spawn_pid, &child_status, WNOHANG);
             printf("background pid is %d\n", spawn_pid);
@@ -367,6 +385,25 @@ void execute_external_command(smsh_state* shell, bool background)
     }
 }
 
+void smsh_check_background(smsh_state* state)
+{
+    int procs = *state->proc_count;
+    int status;
+    for (int i = 0; i < procs; i++) {
+        if (waitpid(state->background_procs[i], &status, WNOHANG) > 0) {
+            if (WIFEXITED(status)) {
+                fprintf(stdout, "exit value %d\n", WEXITSTATUS(status));
+                fflush(stdout);
+            }
+            // in the case it was termninated by a signal
+            else {
+                fprintf(stdout,"terminated by signal %d\n", WTERMSIG(status));
+                fflush(stdout);
+            }
+        }
+    }
+}
+
 // smsh_process_command
 // main command processing logic
 // executes build in commands
@@ -374,6 +411,9 @@ void execute_external_command(smsh_state* shell, bool background)
 // sets the state for the status string
 void smsh_process_command(smsh_state* shell)
 {
+    // handle comments
+    if (shell->ignore_all) return;
+
     int result = 0;
     // first arg is the command
     char* command = shell->args[0];
@@ -459,9 +499,11 @@ int main(void)
     // exception to ownership, main will own this array
     // for tracking background processes
     pid_t* procs = calloc(sizeof(pid_t), ENOUGH_SPACE);
+    int proc_count = 0;
 
     // shell data
     shell.background_procs = procs;
+    shell.proc_count = &proc_count;
     // alocate status buffer
     shell.status_buffer = calloc(sizeof(char), ENOUGH_SPACE);
     sprintf(shell.status_buffer, "exit value 0\n");
@@ -471,6 +513,7 @@ int main(void)
         smsh_get_input(&shell);
         smsh_parse_input(&shell);
         smsh_process_command(&shell);
+        smsh_check_background(&shell);
         smsh_clean_state(&shell);
     }
 
@@ -479,3 +522,4 @@ int main(void)
     free(shell.status_buffer);
     return 0;
 }
+
