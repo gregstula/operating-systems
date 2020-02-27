@@ -221,6 +221,11 @@ void smsh_parse_input(smsh_state* shell)
     char* line = shell->line_buffer;
     size_t len = strlen(line) + 1;
 
+    if (line[0] == '\0') {
+        shell->ignore_all = true;
+        return;
+    }
+
     // allocate array for arg strings
     char** arg_arr = calloc(sizeof(char*), MAX_ARGS);
 
@@ -280,11 +285,6 @@ void smsh_parse_input(smsh_state* shell)
     // parse built in symbols
     for (size_t i = 0; i < arg_count; i++) {
 
-        // ignore everything if it's a comment
-        if (strcmp(shell->args[i],"#") == 0) {
-            shell->ignore_all = true;
-        }
-
         // handle input redirection
         if (strcmp(shell->args[i],"<") == 0) {
             // words followed by < or < must be after all args
@@ -341,7 +341,12 @@ void smsh_parse_input(smsh_state* shell)
     }
 }
 
-void execute_external_command(smsh_state* shell, bool background)
+// function: execute external command
+// contains all the command execution logic
+// spawns a child process and executes the command
+// in the foreground or rhe background depending on
+// the shell state
+void smsh_execute_external_command(smsh_state* shell)
 {
 
     int child_status;
@@ -354,12 +359,7 @@ void execute_external_command(smsh_state* shell, bool background)
     }
 
     if (spawn_pid == 0) { // child process
-        // turn on ^C
-        struct sigaction sigint_child = { 0 };
-        sigfillset(&sigint_child.sa_mask);
-        sigint_child.sa_flags = 0;
-        sigaction(SIGINT, &sigint_child, NULL);
-        if (background) {
+        if (shell->send_to_background) {
             // if no redirect given for stdin
             freopen("/dev/null", "r", stdin);
 
@@ -403,7 +403,7 @@ void execute_external_command(smsh_state* shell, bool background)
         execvp(command, shell->args);
 
         // these lines execute if it did not go well
-        fprintf(stderr, "%s: no such file or directory", command);
+        fprintf(stderr, "%s: no such file or directory\n", command);
         fflush(stderr);
         exit(1);
     }
@@ -431,6 +431,9 @@ void execute_external_command(smsh_state* shell, bool background)
     }
 }
 
+// function: check_background
+// checks the status of background pids and reports on them
+// if they have terminated or exited
 void smsh_check_background(smsh_state* state)
 {
     int procs = *state->proc_count;
@@ -489,15 +492,8 @@ void smsh_process_command(smsh_state* shell)
     // handle non built in command
     // the function sets the status buffer per case
     else {
-        // check for background command
-        if (shell->send_to_background && global_allow_background) {
-            execute_external_command(shell, true);
-            return;
-        }
-        else {
-            execute_external_command(shell, false);
-            return;
-        }
+        smsh_execute_external_command(shell);
+        return;
     }
     sprintf(shell->status_buffer, "exit value %d\n", result);
 }
@@ -524,12 +520,8 @@ void catch_SIGTSTP(int signo)
 // entry point
 int main(void)
 {
-    // signal handler for SIGINT
-    struct sigaction sigint_action = { 0 };
-    sigint_action.sa_handler = SIG_IGN; // ignore interupt
-    sigfillset(&sigint_action.sa_mask);
-    sigint_action.sa_flags = 0;
-    sigaction(SIGINT, &sigint_action, NULL);
+    // handler for SIGINT
+    signal(SIGINT, SIG_IGN);
 
     // signal handler for SIGSTP
     struct sigaction sigtstp_action = { 0 };
