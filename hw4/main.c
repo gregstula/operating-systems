@@ -112,13 +112,15 @@ void smsh_clean_state(smsh_state* state)
     }
 
     // Free args strings
-    for (size_t i = 0; i < state->args_size; i++) {
-        free(state->args[i]);
-        state->args[i] = NULL;
+    if (state && state->args) {
+        for (size_t i = 0; i < state->args_size; i++) {
+            free(state->args[i]);
+            state->args[i] = NULL;
+        }
+        // free args array
+        free(state->args);
+        state->args = NULL;
     }
-    // free args array
-    free(state->args);
-    state->args = NULL;
 
 
     // set bools to default
@@ -195,7 +197,6 @@ char* util_find_and_replace(char* str, char* to_find, char* replace)
 // largely inspired by how I *wanted* strcspn to work
 size_t util_distance_to_char(char* itr, char c)
 {
-
     int distance = 0;
     // count the number of increments
     // it takes to find the char and return it
@@ -404,6 +405,11 @@ void smsh_execute_external_command(smsh_state* shell)
             fcntl(output, F_SETFD, FD_CLOEXEC);
         }
 
+        struct sigaction sigint_action;
+        sigint_action.sa_handler = SIG_DFL;
+        sigfillset(&sigint_action.sa_mask);
+        sigint_action.sa_flags = 0;
+        sigaction(SIGINT, &sigint_action, NULL);
         // execute
         execvp(command, shell->args);
 
@@ -413,6 +419,7 @@ void smsh_execute_external_command(smsh_state* shell)
         exit(1);
     }
     else { // parent process
+
         if (shell->send_to_background && global_allow_background) {
             // save background process in array
             shell->background_procs[*shell->proc_count] = spawn_pid;
@@ -525,9 +532,6 @@ void catch_SIGTSTP(int signo)
 // entry point
 int main(void)
 {
-    // handler for SIGINT
-    signal(SIGINT, SIG_IGN);
-
     // signal handler for SIGSTP
     struct sigaction sigtstp_action = { 0 };
     // set to handler function
@@ -535,6 +539,14 @@ int main(void)
     sigfillset(&sigtstp_action.sa_mask);
     sigtstp_action.sa_flags = 0;
     sigaction(SIGTSTP, &sigtstp_action, NULL);
+
+    // sigint sigaction
+    struct sigaction sigint_action = { 0 };
+    // SIGINT sigaction
+    sigint_action.sa_handler = SIG_IGN;
+    sigfillset(&sigint_action.sa_mask);
+    sigint_action.sa_flags = 0;
+    sigaction(SIGINT, &sigint_action, NULL);
 
 
     // stores command line data
@@ -558,6 +570,7 @@ int main(void)
         smsh_process_command(&shell);
         smsh_check_background(&shell);
         smsh_clean_state(&shell);
+        // handler for SIGINT
     }
 
     // free array of pid_ts
