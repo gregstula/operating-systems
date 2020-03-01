@@ -221,6 +221,7 @@ void smsh_parse_input(smsh_state* shell)
     char* line = shell->line_buffer;
     size_t len = strlen(line) + 1;
 
+    // ignore blank lines
     if (line[0] == '\0') {
         shell->ignore_all = true;
         return;
@@ -280,6 +281,10 @@ void smsh_parse_input(smsh_state* shell)
         }
     }
 
+    // ignore comments
+    if (strstr(line,"#")) {
+        shell->ignore_all = true;
+    }
 
     int truncate_to = 0;
     // parse built in symbols
