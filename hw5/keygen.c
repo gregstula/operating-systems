@@ -1,18 +1,17 @@
 /* Gregory D Stula
  * 2020-02-26
  * CS 344 Winter 2020
-*/
+ */
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 
-
 // entry point
 int main(int argc, char** argv)
 {
     if (argc != 2) {
-        fprintf(stderr,"Usage: keygen [keylength]\n");
+        fprintf(stderr, "Usage: keygen [keylength]\n");
         return 1;
     }
 
@@ -27,10 +26,9 @@ int main(int argc, char** argv)
 
     for (int i = 0; i < keylen; i++) {
         // aquire random ascii character
-        buffer[i] = (char) (rand() % (upperbound - lowerbound + 1)) + lowerbound;
+        buffer[i] = (char)(rand() % (upperbound - lowerbound + 1)) + lowerbound;
     }
     buffer[keylen] = '\0'; // apend null char
     fprintf(stdout, "%s\n", buffer); // print to stdout
     return 0;
 }
-

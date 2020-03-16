@@ -1,0 +1,6 @@
+#!/bin/env bash
+	gcc -std=c99 -D_POSIX_C_SOURCE keygen.c -o keygen
+	gcc -std=c99 -D_POSIX_C_SOURCE otp_enc_d.c -o otp_enc_d
+	gcc -std=c99 -D_POSIX_C_SOURCE otp_enc.c -o otp_enc
+	gcc -std=c99 -D_POSIX_C_SOURCE otp_dec_d.c -o otp_dec_d
+	gcc -std=c99 -D_POSIX_C_SOURCE otp_dec.c -o otp_dec
